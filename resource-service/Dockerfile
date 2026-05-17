@@ -9,7 +9,7 @@ RUN mvn -Dmaven.wagon.http.retryHandler.count=5 \
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 COPY --from=builder /app/target/*.jar app.jar
