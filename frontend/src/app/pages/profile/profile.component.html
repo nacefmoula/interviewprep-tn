@@ -1,0 +1,1248 @@
+<div class="profile-page animate-fade" *ngIf="user">
+    <!-- ── Profile Header ── -->
+    <section class="profile-header">
+        <div class="ph-cover">
+            <div class="ph-cover-grid" aria-hidden="true"></div>
+        </div>
+        <div class="ph-body">
+            <div class="ph-avatar-wrap" (click)="openPhotoEditor()" role="button" tabindex="0">
+                <img
+                    *ngIf="user.avatarUrl; else initialsAvatar"
+                    [src]="user.avatarUrl"
+                    alt="Profile avatar"
+                    class="ph-avatar-image"
+                />
+                <ng-template #initialsAvatar>
+                    <div class="ph-avatar-image ph-avatar-initials">
+                        {{ initials || "U" }}
+                    </div>
+                </ng-template>
+                <div class="ph-online-dot" title="Online" aria-label="Online"></div>
+                <div class="ph-avatar-edit" aria-hidden="true">
+                    <i class="bi bi-camera-fill"></i>
+                </div>
+            </div>
+
+            <div class="ph-info">
+                <div class="ph-name-row">
+                    <h1 class="ph-name">
+                        {{ user.firstName }} {{ user.lastName }}
+                    </h1>
+                    <app-badge
+                        *ngIf="user.plan"
+                        [variant]="getPlanVariant()"
+                        shape="pill"
+                    >
+                        <i
+                            class="bi"
+                            [class.bi-star-fill]="user.plan === 'PREMIUM'"
+                            [class.bi-mortarboard-fill]="user.plan === 'STUDENT'"
+                            [class.bi-circle-fill]="user.plan === 'FREE'"
+                        ></i>
+                        {{ user.plan }}
+                    </app-badge>
+
+                    <app-badge
+                        *ngIf="user.isVerified"
+                        variant="success"
+                        shape="pill"
+                        [dot]="true"
+                    >
+                        Admin verified
+                    </app-badge>
+                    <app-badge
+                        *ngIf="!user.isVerified"
+                        variant="warning"
+                        shape="pill"
+                        [dot]="true"
+                    >
+                        Pending verification
+                    </app-badge>
+                </div>
+
+                <div class="ph-role">
+                    {{ user.preferredIndustry || "Job Seeker" }}
+                </div>
+
+                <div class="ph-location" *ngIf="user.city">
+                    <i class="bi bi-geo-alt-fill"></i>
+                    <span>{{ user.city }}</span>
+                </div>
+
+                <div class="ph-stats">
+                    <div class="ph-stat">
+                        <span class="ph-stat-icon"
+                            ><i class="bi bi-lightning-charge-fill"></i
+                        ></span>
+                        <div>
+                            <span class="ph-stat-val">{{
+                                user.karmaPoints
+                            }}</span>
+                            <span class="ph-stat-label">Karma points</span>
+                        </div>
+                    </div>
+                    <div class="ph-stat">
+                        <span class="ph-stat-icon"
+                            ><i class="bi bi-mic-fill"></i
+                        ></span>
+                        <div>
+                            <span class="ph-stat-val"
+                                >{{ user.simulationsUsedThisMonth }} /
+                                {{ user.simulationsLimit }}</span
+                            >
+                            <span class="ph-stat-label">Sessions used</span>
+                        </div>
+                    </div>
+                    <div class="ph-stat">
+                        <span class="ph-stat-icon"
+                            ><i class="bi bi-person-badge-fill"></i
+                        ></span>
+                        <div>
+                            <span class="ph-stat-val">{{ getRoleLabel() }}</span>
+                            <span class="ph-stat-label">Role</span>
+                        </div>
+                    </div>
+                    <div class="ph-stat">
+                        <span class="ph-stat-icon"
+                            ><i class="bi bi-calendar-heart-fill"></i
+                        ></span>
+                        <div>
+                            <span class="ph-stat-val">{{ memberSinceLabel || "—" }}</span>
+                            <span class="ph-stat-label">Member since</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ph-actions">
+                <button class="btn btn-primary" (click)="toggleEdit()">
+                    <i
+                        class="bi"
+                        [class.bi-check2]="editing"
+                        [class.bi-pencil-fill]="!editing"
+                    ></i>
+                    {{ editing ? "Save profile" : "Edit profile" }}
+                </button>
+                <button class="btn btn-secondary" type="button">
+                    <i class="bi bi-share-fill"></i>
+                    Share
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Profile Completeness ── -->
+    <section class="card completion-card">
+        <div class="cc-header">
+            <div>
+                <div class="cc-title">Profile completeness</div>
+                <div class="cc-sub">
+                    A complete profile helps us personalise your experience and
+                    recommendations.
+                </div>
+            </div>
+            <div class="cc-pct" [attr.data-tone]="getCompletionTone()">
+                {{ completionScore }}%
+            </div>
+        </div>
+
+        <div class="progress-bar-wrap">
+            <div class="progress-bar" aria-hidden="true">
+                <div
+                    class="progress-fill"
+                    [style.width]="completionScore + '%'"
+                ></div>
+            </div>
+        </div>
+
+        <div class="cc-sections">
+            <div class="cc-section" *ngFor="let section of completionSections">
+                <div class="cc-section-header">
+                    <span>{{ section.title }}</span>
+                    <span class="cc-section-pts"
+                        >{{ section.earnedPoints }}/{{
+                            section.totalPoints
+                        }}
+                        pts</span
+                    >
+                </div>
+
+                <div class="cc-todos">
+                    <div
+                        class="cc-todo"
+                        [class.complete]="item.state === 'complete'"
+                        [class.incomplete]="item.state === 'incomplete'"
+                        [class.pending]="item.state === 'pending'"
+                        [class.rejected]="item.state === 'rejected'"
+                        *ngFor="let item of section.items"
+                    >
+                        <i
+                            class="bi"
+                            [class.bi-check-circle-fill]="
+                                item.state === 'complete'
+                            "
+                            [class.bi-circle]="item.state === 'incomplete'"
+                            [class.bi-hourglass-split]="
+                                item.state === 'pending'
+                            "
+                            [class.bi-x-circle-fill]="item.state === 'rejected'"
+                        ></i>
+                        <span class="cc-item-label">{{ item.label }}</span>
+                        <span class="cc-item-points">{{ item.points }} pts</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Edit Form ── -->
+    <section class="card" *ngIf="editing">
+        <app-section-header
+            title="Edit profile"
+            icon='<i class="bi bi-pencil-fill"></i>'
+            subtitle="Tweak your info, then save changes."
+        ></app-section-header>
+
+        <!-- Photo -->
+        <div
+            class="edit-section"
+            id="photo-edit-section"
+            [class.active]="activeEditSection === 'photo'"
+        >
+            <label class="edit-label">Profile photo</label>
+
+            <div class="avatar-mode-switch" role="tablist">
+                <button
+                    type="button"
+                    class="mode-btn"
+                    role="tab"
+                    [class.selected-mode]="avatarInputMode === 'upload'"
+                    [attr.aria-selected]="avatarInputMode === 'upload'"
+                    (click)="setAvatarInputMode('upload')"
+                >
+                    <i class="bi bi-cloud-arrow-up-fill"></i>
+                    Upload
+                </button>
+                <button
+                    type="button"
+                    class="mode-btn"
+                    role="tab"
+                    [class.selected-mode]="avatarInputMode === 'url'"
+                    [attr.aria-selected]="avatarInputMode === 'url'"
+                    (click)="setAvatarInputMode('url')"
+                >
+                    <i class="bi bi-link-45deg"></i>
+                    Image URL
+                </button>
+            </div>
+
+            <div
+                class="avatar-preview"
+                *ngIf="avatarPreviewUrl; else emptyAvatarPreview"
+            >
+                <img [src]="avatarPreviewUrl" alt="Avatar preview" />
+            </div>
+            <ng-template #emptyAvatarPreview>
+                <div class="avatar-empty-mini">
+                    <i class="bi bi-image"></i>
+                    <p>No avatar selected yet.</p>
+                </div>
+            </ng-template>
+
+            <div
+                *ngIf="avatarInputMode === 'upload'"
+                class="avatar-input-block"
+            >
+                <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    (change)="onAvatarFileSelected($event)"
+                />
+                <div class="avatar-upload-status" *ngIf="avatarUploadLoading">
+                    <i class="bi bi-arrow-repeat spin"></i>
+                    Uploading avatar…
+                </div>
+            </div>
+
+            <div *ngIf="avatarInputMode === 'url'" class="avatar-input-block">
+                <input
+                    class="input"
+                    type="url"
+                    [(ngModel)]="editForm.avatarUrl"
+                    (ngModelChange)="onAvatarUrlChange()"
+                    placeholder="https://example.com/avatar.jpg"
+                />
+            </div>
+
+            <div class="save-error" *ngIf="avatarUploadError">
+                <i class="bi bi-exclamation-circle-fill"></i>
+                {{ avatarUploadError }}
+            </div>
+
+            <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                (click)="removeAvatar()"
+                [disabled]="!avatarPreviewUrl && !editForm.avatarUrl"
+            >
+                <i class="bi bi-trash"></i>
+                Remove photo
+            </button>
+        </div>
+
+        <!-- About -->
+        <div
+            class="edit-section"
+            id="about-edit-section"
+            [class.active]="activeEditSection === 'about'"
+        >
+            <label class="edit-label">Bio</label>
+            <textarea
+                class="input"
+                rows="4"
+                [(ngModel)]="editForm.bio"
+                placeholder="Write something about yourself..."
+            ></textarea>
+            <div class="edit-grid">
+                <div class="edit-field">
+                    <label class="edit-label">First name</label>
+                    <input
+                        class="input"
+                        type="text"
+                        [(ngModel)]="editForm.firstName"
+                    />
+                </div>
+                <div class="edit-field">
+                    <label class="edit-label">Last name</label>
+                    <input
+                        class="input"
+                        type="text"
+                        [(ngModel)]="editForm.lastName"
+                    />
+                </div>
+                <div class="edit-field">
+                    <label class="edit-label">Phone number</label>
+                    <input
+                        class="input"
+                        type="tel"
+                        [(ngModel)]="editForm.phoneNumber"
+                        placeholder="+216..."
+                    />
+                </div>
+                <div class="edit-field">
+                    <label class="edit-label">City</label>
+                    <input
+                        class="input"
+                        type="text"
+                        [(ngModel)]="editForm.city"
+                        placeholder="e.g. Tunis"
+                    />
+                </div>
+                <div class="edit-field">
+                    <label class="edit-label">Preferred industry</label>
+                    <select
+                        class="input"
+                        [(ngModel)]="editForm.preferredIndustry"
+                    >
+                        <option value="">Select industry</option>
+                        <option value="TECHNOLOGY">Technology</option>
+                        <option value="FINANCE">Finance</option>
+                        <option value="HEALTHCARE">Healthcare</option>
+                        <option value="EDUCATION">Education</option>
+                        <option value="MARKETING">Marketing</option>
+                        <option value="ENGINEERING">Engineering</option>
+                        <option value="CONSULTING">Consulting</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                </div>
+                <div class="edit-field">
+                    <label class="edit-label">Preferred language</label>
+                    <select
+                        class="input"
+                        [(ngModel)]="editForm.preferredLanguage"
+                    >
+                        <option value="fr">Français</option>
+                        <option value="en">English</option>
+                        <option value="ar">Arabic</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preferences -->
+        <div
+            class="edit-section"
+            id="preferences-edit-section"
+            [class.active]="activeEditSection === 'preferences'"
+        >
+            <label class="edit-label">Notifications &amp; visibility</label>
+            <div class="notif-row">
+                <label class="toggle-label">
+                    <input
+                        type="checkbox"
+                        [(ngModel)]="editForm.emailNotificationsEnabled"
+                    />
+                    <span>Email notifications</span>
+                </label>
+                <label class="toggle-label">
+                    <input
+                        type="checkbox"
+                        [(ngModel)]="editForm.pushNotificationsEnabled"
+                    />
+                    <span>Push notifications</span>
+                </label>
+                <label class="toggle-label">
+                    <input
+                        type="checkbox"
+                        [(ngModel)]="editForm.profileVisible"
+                    />
+                    <span>Public profile</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Skills -->
+        <div
+            class="edit-section"
+            id="skills-edit-section"
+            [class.active]="activeEditSection === 'skills'"
+        >
+            <label class="edit-label">Skills</label>
+
+            <div class="skills-suggested-grid">
+                <button
+                    type="button"
+                    class="skill-chip"
+                    *ngFor="let skill of suggestedSkills"
+                    [class.selected]="hasSkill(skill)"
+                    (click)="toggleSuggestedSkill(skill)"
+                >
+                    <i
+                        class="bi"
+                        [class.bi-check-circle-fill]="hasSkill(skill)"
+                        [class.bi-plus-circle]="!hasSkill(skill)"
+                    ></i>
+                    {{ skill }}
+                </button>
+            </div>
+
+            <div class="custom-skill-row">
+                <input
+                    class="input"
+                    type="text"
+                    [(ngModel)]="customSkill"
+                    placeholder="Add a custom skill"
+                    (keydown.enter)="addSkill($event)"
+                />
+                <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    (click)="addSkill()"
+                >
+                    <i class="bi bi-plus-lg"></i>
+                    Add
+                </button>
+            </div>
+
+            <div class="skills-badges" *ngIf="selectedSkills.length">
+                <span class="skill-badge" *ngFor="let skill of selectedSkills">
+                    {{ skill }}
+                    <button
+                        type="button"
+                        (click)="removeSkill(skill)"
+                        aria-label="Remove skill"
+                    >
+                        <i class="bi bi-x"></i>
+                    </button>
+                </span>
+            </div>
+        </div>
+
+        <!-- Experience -->
+        <div
+            class="edit-section"
+            id="experience-edit-section"
+            [class.active]="activeEditSection === 'experience'"
+        >
+            <div class="experience-header-row">
+                <label class="edit-label">Work experience</label>
+                <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    (click)="startAddExperience()"
+                >
+                    <i class="bi bi-plus-lg"></i>
+                    Add experience
+                </button>
+            </div>
+
+            <div
+                class="experience-list"
+                *ngIf="experiences.length; else emptyEditExperiences"
+            >
+                <div
+                    class="experience-card"
+                    *ngFor="let exp of experiences; let i = index"
+                >
+                    <div class="experience-card-top">
+                        <div class="experience-card-icon">
+                            <i class="bi bi-briefcase-fill"></i>
+                        </div>
+                        <div class="experience-card-body">
+                            <h4>{{ exp.title }}</h4>
+                            <p class="experience-company">{{ exp.company }}</p>
+                            <p class="experience-date">
+                                <i class="bi bi-calendar3"></i>
+                                {{ exp.startDate }} —
+                                {{
+                                    exp.current ? "Present" : exp.endDate || ""
+                                }}
+                            </p>
+                        </div>
+                        <div class="experience-actions">
+                            <button
+                                type="button"
+                                class="icon-action"
+                                aria-label="Edit experience"
+                                (click)="startEditExperience(i)"
+                            >
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button
+                                type="button"
+                                class="icon-action icon-action--danger"
+                                aria-label="Delete experience"
+                                (click)="removeExperience(i)"
+                            >
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <ng-template #emptyEditExperiences>
+                <div class="empty-mini">
+                    <i class="bi bi-briefcase"></i>
+                    <p>No work experience added yet.</p>
+                </div>
+            </ng-template>
+
+            <div class="experience-form" *ngIf="showExperienceForm">
+                <div class="edit-grid">
+                    <div class="edit-field">
+                        <label class="edit-label">Title *</label>
+                        <input
+                            class="input"
+                            type="text"
+                            [(ngModel)]="experienceForm.title"
+                        />
+                    </div>
+                    <div class="edit-field">
+                        <label class="edit-label">Company *</label>
+                        <input
+                            class="input"
+                            type="text"
+                            [(ngModel)]="experienceForm.company"
+                        />
+                    </div>
+                    <div class="edit-field">
+                        <label class="edit-label">Location</label>
+                        <input
+                            class="input"
+                            type="text"
+                            [(ngModel)]="experienceForm.location"
+                        />
+                    </div>
+                    <div class="edit-field">
+                        <label class="edit-label">Employment type</label>
+                        <input
+                            class="input"
+                            type="text"
+                            [(ngModel)]="experienceForm.employmentType"
+                            placeholder="Full-time, Internship..."
+                        />
+                    </div>
+                    <div class="edit-field">
+                        <label class="edit-label">Start date *</label>
+                        <input
+                            class="input"
+                            type="month"
+                            [(ngModel)]="experienceForm.startDate"
+                        />
+                    </div>
+                    <div class="edit-field" *ngIf="!experienceForm.current">
+                        <label class="edit-label">End date *</label>
+                        <input
+                            class="input"
+                            type="month"
+                            [(ngModel)]="experienceForm.endDate"
+                        />
+                    </div>
+                </div>
+
+                <label class="toggle-label">
+                    <input
+                        type="checkbox"
+                        [(ngModel)]="experienceForm.current"
+                    />
+                    <span>I currently work here</span>
+                </label>
+
+                <label class="edit-label">Description</label>
+                <textarea
+                    class="input"
+                    rows="3"
+                    [(ngModel)]="experienceForm.description"
+                ></textarea>
+
+                <div class="experience-form-actions">
+                    <button
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                        [disabled]="
+                            !experienceForm.title ||
+                            !experienceForm.company ||
+                            !experienceForm.startDate ||
+                            (!experienceForm.current && !experienceForm.endDate)
+                        "
+                        (click)="saveExperience()"
+                    >
+                        <i class="bi bi-check2"></i>
+                        {{
+                            editingExperienceIndex === null
+                                ? "Add experience"
+                                : "Save experience"
+                        }}
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        (click)="cancelExperienceEdit()"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Education -->
+        <div
+            class="edit-section"
+            id="education-edit-section"
+            [class.active]="activeEditSection === 'education'"
+        >
+            <div class="experience-header-row">
+                <label class="edit-label">Education</label>
+                <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    (click)="startAddEducation()"
+                >
+                    <i class="bi bi-plus-lg"></i>
+                    Add education
+                </button>
+            </div>
+
+            <div
+                class="experience-list"
+                *ngIf="educations.length; else emptyEditEducations"
+            >
+                <div
+                    class="experience-card"
+                    *ngFor="let edu of educations; let i = index"
+                >
+                    <div class="experience-card-top">
+                        <div class="experience-card-icon">
+                            <i class="bi bi-mortarboard-fill"></i>
+                        </div>
+                        <div class="experience-card-body">
+                            <h4>{{ edu.degree }}</h4>
+                            <p class="experience-company">{{ edu.school }}</p>
+                            <p class="experience-date">
+                                <i class="bi bi-calendar3"></i>
+                                {{ edu.startDate }} —
+                                {{
+                                    edu.current ? "Present" : edu.endDate || ""
+                                }}
+                            </p>
+                            <p class="experience-meta" *ngIf="edu.fieldOfStudy">
+                                {{ edu.fieldOfStudy }}
+                            </p>
+                        </div>
+                        <div class="experience-actions">
+                            <button
+                                type="button"
+                                class="icon-action"
+                                aria-label="Edit education"
+                                (click)="startEditEducation(i)"
+                            >
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button
+                                type="button"
+                                class="icon-action icon-action--danger"
+                                aria-label="Delete education"
+                                (click)="removeEducation(i)"
+                            >
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <ng-template #emptyEditEducations>
+                <div class="empty-mini">
+                    <i class="bi bi-mortarboard"></i>
+                    <p>No education added yet.</p>
+                </div>
+            </ng-template>
+
+            <div class="experience-form" *ngIf="showEducationForm">
+                <div class="edit-grid">
+                    <div class="edit-field">
+                        <label class="edit-label">School *</label>
+                        <input
+                            class="input"
+                            type="text"
+                            [(ngModel)]="educationForm.school"
+                        />
+                    </div>
+                    <div class="edit-field">
+                        <label class="edit-label">Degree *</label>
+                        <input
+                            class="input"
+                            type="text"
+                            [(ngModel)]="educationForm.degree"
+                        />
+                    </div>
+                    <div class="edit-field">
+                        <label class="edit-label">Field of study</label>
+                        <input
+                            class="input"
+                            type="text"
+                            [(ngModel)]="educationForm.fieldOfStudy"
+                        />
+                    </div>
+                    <div class="edit-field">
+                        <label class="edit-label">Start date *</label>
+                        <input
+                            class="input"
+                            type="month"
+                            [(ngModel)]="educationForm.startDate"
+                        />
+                    </div>
+                    <div class="edit-field" *ngIf="!educationForm.current">
+                        <label class="edit-label">End date *</label>
+                        <input
+                            class="input"
+                            type="month"
+                            [(ngModel)]="educationForm.endDate"
+                        />
+                    </div>
+                </div>
+
+                <label class="toggle-label">
+                    <input
+                        type="checkbox"
+                        [(ngModel)]="educationForm.current"
+                    />
+                    <span>I currently study here</span>
+                </label>
+
+                <label class="edit-label">Description</label>
+                <textarea
+                    class="input"
+                    rows="3"
+                    [(ngModel)]="educationForm.description"
+                ></textarea>
+
+                <div class="experience-form-actions">
+                    <button
+                        type="button"
+                        class="btn btn-primary btn-sm"
+                        [disabled]="
+                            !educationForm.school ||
+                            !educationForm.degree ||
+                            !educationForm.startDate ||
+                            (!educationForm.current && !educationForm.endDate)
+                        "
+                        (click)="saveEducation()"
+                    >
+                        <i class="bi bi-check2"></i>
+                        {{
+                            editingEducationIndex === null
+                                ? "Add education"
+                                : "Save education"
+                        }}
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary btn-sm"
+                        (click)="cancelEducationEdit()"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="edit-actions">
+            <button
+                class="btn btn-primary"
+                (click)="saveProfile()"
+                [disabled]="saving"
+            >
+                <i
+                    class="bi"
+                    [class.bi-arrow-repeat]="saving"
+                    [class.spin]="saving"
+                    [class.bi-check2]="!saving"
+                ></i>
+                {{ saving ? "Saving…" : "Save changes" }}
+            </button>
+            <button class="btn btn-secondary" (click)="cancelEdit()">
+                Cancel
+            </button>
+        </div>
+        <div *ngIf="localDraftNotice" class="alert alert--info">
+            <i class="bi bi-info-circle-fill"></i>
+            {{ localDraftNotice }}
+        </div>
+        <div *ngIf="saveError" class="alert alert--error">
+            <i class="bi bi-exclamation-circle-fill"></i>
+            {{ saveError }}
+        </div>
+        <div *ngIf="saveSuccess" class="alert alert--success">
+            <i class="bi bi-check-circle-fill"></i>
+            Profile updated successfully.
+        </div>
+    </section>
+
+    <!-- ── Main Grid (view mode) ── -->
+    <div class="profile-grid" *ngIf="!editing">
+        <div class="profile-main">
+            <!-- About -->
+            <div class="card">
+                <app-section-header
+                    title="About"
+                    icon='<i class="bi bi-person-vcard-fill"></i>'
+                    actionLabel="Edit"
+                    (actionClick)="openAboutEditor()"
+                ></app-section-header>
+                <div class="about-text" *ngIf="user.bio; else emptyBio">
+                    {{ user.bio }}
+                </div>
+                <ng-template #emptyBio>
+                    <div class="empty-mini">
+                        <i class="bi bi-chat-quote"></i>
+                        <p>
+                            Add a bio to tell mentors and the community about
+                            yourself, your goals, and what you're looking for.
+                        </p>
+                    </div>
+                </ng-template>
+            </div>
+
+            <!-- Skills -->
+            <div class="card">
+                <app-section-header
+                    title="Skills &amp; strengths"
+                    icon='<i class="bi bi-stars"></i>'
+                    actionLabel="Add"
+                    (actionClick)="openSkillsEditor()"
+                ></app-section-header>
+                <div
+                    class="skills-badges"
+                    *ngIf="user.skills.length; else emptySkills"
+                >
+                    <span class="skill-badge" *ngFor="let skill of user.skills">
+                        {{ skill }}
+                    </span>
+                </div>
+                <ng-template #emptySkills>
+                    <div class="empty-mini">
+                        <i class="bi bi-stars"></i>
+                        <p>
+                            No skills added yet. Click <strong>Add</strong> to
+                            highlight your strengths.
+                        </p>
+                    </div>
+                </ng-template>
+            </div>
+
+            <!-- Work Experience -->
+            <div class="card">
+                <app-section-header
+                    title="Work experience"
+                    icon='<i class="bi bi-briefcase-fill"></i>'
+                    actionLabel="Add"
+                    (actionClick)="openExperienceEditor()"
+                ></app-section-header>
+                <div
+                    class="experience-list"
+                    *ngIf="experiences.length; else emptyExperiences"
+                >
+                    <div
+                        class="experience-card"
+                        *ngFor="let exp of experiences; let i = index"
+                    >
+                        <div class="experience-card-top">
+                            <div class="experience-card-icon">
+                                <i class="bi bi-briefcase-fill"></i>
+                            </div>
+                            <div class="experience-card-body">
+                                <h4>{{ exp.title }}</h4>
+                                <p class="experience-company">
+                                    {{ exp.company }}
+                                </p>
+                                <p class="experience-date">
+                                    <i class="bi bi-calendar3"></i>
+                                    {{ exp.startDate }} —
+                                    {{
+                                        exp.current
+                                            ? "Present"
+                                            : exp.endDate || ""
+                                    }}
+                                </p>
+                                <p
+                                    class="experience-meta"
+                                    *ngIf="exp.location || exp.employmentType"
+                                >
+                                    <ng-container *ngIf="exp.location">{{
+                                        exp.location
+                                    }}</ng-container>
+                                    <ng-container
+                                        *ngIf="
+                                            exp.location && exp.employmentType
+                                        "
+                                    >
+                                        ·
+                                    </ng-container>
+                                    <ng-container *ngIf="exp.employmentType">{{
+                                        exp.employmentType
+                                    }}</ng-container>
+                                </p>
+                                <p
+                                    class="experience-desc"
+                                    *ngIf="exp.description"
+                                >
+                                    {{ exp.description }}
+                                </p>
+                            </div>
+                            <div class="experience-actions">
+                                <button
+                                    type="button"
+                                    class="icon-action"
+                                    aria-label="Edit experience"
+                                    (click)="openExperienceItemEditor(i)"
+                                >
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <ng-template #emptyExperiences>
+                    <div class="empty-mini">
+                        <i class="bi bi-briefcase"></i>
+                        <p>
+                            Add your work experience to strengthen your profile.
+                        </p>
+                    </div>
+                </ng-template>
+            </div>
+
+            <!-- Education -->
+            <div class="card">
+                <app-section-header
+                    title="Education"
+                    icon='<i class="bi bi-mortarboard-fill"></i>'
+                    actionLabel="Add"
+                    (actionClick)="openEducationEditor()"
+                ></app-section-header>
+                <div
+                    class="experience-list"
+                    *ngIf="educations.length; else emptyEducations"
+                >
+                    <div
+                        class="experience-card"
+                        *ngFor="let edu of educations; let i = index"
+                    >
+                        <div class="experience-card-top">
+                            <div class="experience-card-icon">
+                                <i class="bi bi-mortarboard-fill"></i>
+                            </div>
+                            <div class="experience-card-body">
+                                <h4>{{ edu.degree }}</h4>
+                                <p class="experience-company">
+                                    {{ edu.school }}
+                                </p>
+                                <p class="experience-date">
+                                    <i class="bi bi-calendar3"></i>
+                                    {{ edu.startDate }} —
+                                    {{
+                                        edu.current
+                                            ? "Present"
+                                            : edu.endDate || ""
+                                    }}
+                                </p>
+                                <p
+                                    class="experience-meta"
+                                    *ngIf="edu.fieldOfStudy"
+                                >
+                                    {{ edu.fieldOfStudy }}
+                                </p>
+                                <p
+                                    class="experience-desc"
+                                    *ngIf="edu.description"
+                                >
+                                    {{ edu.description }}
+                                </p>
+                            </div>
+                            <div class="experience-actions">
+                                <button
+                                    type="button"
+                                    class="icon-action"
+                                    aria-label="Edit education"
+                                    (click)="openEducationItemEditor(i)"
+                                >
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <ng-template #emptyEducations>
+                    <div class="empty-mini">
+                        <i class="bi bi-mortarboard"></i>
+                        <p>
+                            Add your education history to complete your profile.
+                        </p>
+                    </div>
+                </ng-template>
+            </div>
+
+            <!-- Interview Preferences -->
+            <div class="card">
+                <app-section-header
+                    title="Interview preferences"
+                    icon='<i class="bi bi-sliders"></i>'
+                    actionLabel="Edit"
+                    (actionClick)="openPreferencesEditor()"
+                ></app-section-header>
+                <div class="pref-list">
+                    <div class="pref-item" *ngFor="let pref of preferences">
+                        <div class="pref-label">{{ pref.label }}</div>
+                        <div class="pref-value">{{ pref.value }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="profile-side">
+            <!-- CV Upload -->
+            <div class="card">
+                <app-section-header
+                    title="CV / Resume"
+                    icon='<i class="bi bi-file-earmark-pdf-fill"></i>'
+                ></app-section-header>
+                <div class="cv-upload-area" [class.has-file]="!!user.cvUrl">
+                    <div class="cva-icon">
+                        <i
+                            class="bi"
+                            [class.bi-file-earmark-pdf-fill]="!!user.cvUrl"
+                            [class.bi-cloud-arrow-up]="!user.cvUrl"
+                        ></i>
+                    </div>
+                    <div class="cva-title">
+                        {{ user.cvUrl ? "CV uploaded" : "No CV uploaded" }}
+                    </div>
+                    <div class="cva-sub">
+                        {{
+                            user.cvUrl
+                                ? cvFileName || "CV ready"
+                                : "PDF only · Max 5MB"
+                        }}
+                    </div>
+
+                    <div class="cv-actions">
+                        <a
+                            *ngIf="user.cvUrl"
+                            class="btn btn-secondary btn-sm"
+                            [href]="cvLink"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <i class="bi bi-eye-fill"></i>
+                            View
+                        </a>
+
+                        <label class="btn btn-primary btn-sm cv-upload-btn">
+                            <i class="bi bi-cloud-arrow-up-fill"></i>
+                            {{ user.cvUrl ? "Replace CV" : "Upload CV" }}
+                            <input
+                                type="file"
+                                accept="application/pdf,.pdf"
+                                (change)="onCvFileSelected($event)"
+                                [disabled]="cvUploadLoading"
+                                hidden
+                            />
+                        </label>
+                    </div>
+
+                    <div class="cv-status" *ngIf="cvUploadLoading">
+                        <i class="bi bi-arrow-repeat spin"></i>
+                        Uploading and analysing CV…
+                    </div>
+                    <div class="alert alert--error" *ngIf="cvUploadError">
+                        <i class="bi bi-exclamation-circle-fill"></i>
+                        {{ cvUploadError }}
+                    </div>
+                    <div class="alert alert--success" *ngIf="cvUploadSuccess">
+                        <i class="bi bi-check-circle-fill"></i>
+                        {{ cvUploadSuccess }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Subscription -->
+            <div class="card">
+                <app-section-header
+                    title="Subscription"
+                    icon='<i class="bi bi-gem"></i>'
+                ></app-section-header>
+                <div class="sub-plan-badge">
+                    <app-badge [variant]="getPlanVariant()" shape="pill">
+                        <i class="bi bi-star-fill"></i>
+                        {{ user.plan }} plan
+                    </app-badge>
+                </div>
+                <div class="sub-details">
+                    <div class="sub-row">
+                        <span>Sessions used</span>
+                        <span
+                            >{{ user.simulationsUsedThisMonth }} /
+                            {{ user.simulationsLimit }}</span
+                        >
+                    </div>
+                    <div class="sub-row">
+                        <span>Status</span>
+                        <span
+                            class="sub-status"
+                            [class.active]="user.subscriptionActive"
+                        >
+                            <span class="dot"></span>
+                            {{
+                                user.subscriptionActive ? "Active" : "Inactive"
+                            }}
+                        </span>
+                    </div>
+                    <div class="sub-row">
+                        <span>Member since</span>
+                        <span>{{ memberSinceLabel || "—" }}</span>
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-sm sub-cta">
+                    <i class="bi bi-gear-fill"></i>
+                    Manage subscription
+                </button>
+            </div>
+
+            <!-- Preferences -->
+            <div class="card">
+                <app-section-header
+                    title="Preferences"
+                    icon='<i class="bi bi-sliders2"></i>'
+                ></app-section-header>
+                <div class="pref-list">
+                    <div class="pref-item">
+                        <span class="pref-label">Email notifications</span>
+                        <span
+                            class="pref-value"
+                            [class.is-on]="user.emailNotificationsEnabled"
+                        >
+                            <i
+                                class="bi"
+                                [class.bi-check-circle-fill]="
+                                    user.emailNotificationsEnabled
+                                "
+                                [class.bi-dash-circle]="
+                                    !user.emailNotificationsEnabled
+                                "
+                            ></i>
+                            {{ user.emailNotificationsEnabled ? "On" : "Off" }}
+                        </span>
+                    </div>
+                    <div class="pref-item">
+                        <span class="pref-label">Push notifications</span>
+                        <span
+                            class="pref-value"
+                            [class.is-on]="user.pushNotificationsEnabled"
+                        >
+                            <i
+                                class="bi"
+                                [class.bi-check-circle-fill]="
+                                    user.pushNotificationsEnabled
+                                "
+                                [class.bi-dash-circle]="
+                                    !user.pushNotificationsEnabled
+                                "
+                            ></i>
+                            {{ user.pushNotificationsEnabled ? "On" : "Off" }}
+                        </span>
+                    </div>
+                    <div class="pref-item">
+                        <span class="pref-label">Public profile</span>
+                        <span
+                            class="pref-value"
+                            [class.is-on]="user.profileVisible"
+                        >
+                            <i
+                                class="bi"
+                                [class.bi-eye-fill]="user.profileVisible"
+                                [class.bi-eye-slash-fill]="!user.profileVisible"
+                            ></i>
+                            {{ user.profileVisible ? "Visible" : "Hidden" }}
+                        </span>
+                    </div>
+                    <div class="pref-item">
+                        <span class="pref-label">Language</span>
+                        <span class="pref-value">{{
+                            preferredLanguageLabel
+                        }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Loading / error ── -->
+<div *ngIf="!user" class="profile-loading-wrap">
+    <ng-container *ngIf="profileLoading; else loadResult">
+        <div class="profile-skel">
+            <app-skeleton variant="card" height="200px"></app-skeleton>
+            <app-skeleton variant="card" height="160px"></app-skeleton>
+            <div class="profile-skel-grid">
+                <app-skeleton variant="card" height="320px"></app-skeleton>
+                <app-skeleton variant="card" height="320px"></app-skeleton>
+            </div>
+        </div>
+    </ng-container>
+    <ng-template #loadResult>
+        <app-card density="spacious">
+            <app-empty-state
+                variant="error"
+                title="We couldn't load your profile"
+                [description]="profileLoadError || 'Unable to load your profile.'"
+            >
+                <app-button (click)="loadProfile()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    Retry
+                </app-button>
+            </app-empty-state>
+        </app-card>
+    </ng-template>
+</div>

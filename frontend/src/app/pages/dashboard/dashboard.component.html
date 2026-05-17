@@ -1,0 +1,528 @@
+<div class="dashboard animate-fade">
+    <ng-container *ngIf="loading; else dashboardReady">
+        <div class="dashboard-skel">
+            <app-skeleton variant="card" height="200px"></app-skeleton>
+            <div class="dashboard-skel-stats">
+                <app-skeleton variant="card" height="100px"></app-skeleton>
+                <app-skeleton variant="card" height="100px"></app-skeleton>
+                <app-skeleton variant="card" height="100px"></app-skeleton>
+                <app-skeleton variant="card" height="100px"></app-skeleton>
+            </div>
+            <app-skeleton variant="card" height="140px"></app-skeleton>
+            <div class="dashboard-skel-grid">
+                <app-skeleton variant="card" height="240px"></app-skeleton>
+                <app-skeleton variant="card" height="240px"></app-skeleton>
+            </div>
+        </div>
+    </ng-container>
+
+    <ng-template #dashboardReady>
+        <ng-container *ngIf="currentUser; else dashboardEmpty">
+            <div *ngIf="isAdmin" class="tab-bar" role="tablist">
+                <button
+                    class="tab-btn"
+                    role="tab"
+                    [class.active]="activeTab === 'overview'"
+                    [attr.aria-selected]="activeTab === 'overview'"
+                    (click)="setTab('overview')"
+                >
+                    <i class="bi bi-grid-1x2-fill"></i>
+                    <span>Overview</span>
+                </button>
+
+                <button
+                    class="tab-btn"
+                    role="tab"
+                    [class.active]="activeTab === 'admin'"
+                    [attr.aria-selected]="activeTab === 'admin'"
+                    (click)="setTab('admin')"
+                >
+                    <i class="bi bi-shield-lock-fill"></i>
+                    <span>Admin Panel</span>
+                </button>
+            </div>
+
+            <div *ngIf="isAdmin && activeTab === 'admin'">
+                <app-admin-dashboard></app-admin-dashboard>
+            </div>
+
+            <div *ngIf="activeTab === 'overview'" class="overview-wrap">
+                <!-- ── Hero ── -->
+                <section class="hero-card" [attr.data-tone]="readinessTone">
+                    <div class="hero-bg" aria-hidden="true"></div>
+                    <div class="hero-content">
+                        <div class="hero-text">
+                            <span class="hero-eyebrow">
+                                <i class="bi bi-stars"></i>
+                                Your interview HQ
+                            </span>
+                            <h1>
+                                Welcome back,
+                                <span class="hero-name">{{
+                                    fullWelcomeName
+                                }}</span>
+                            </h1>
+                            <p class="hero-lede">
+                                You've practiced
+                                <strong>{{ sessionsThisWeek }}</strong>
+                                sessions this week. Keep the momentum — every
+                                rep brings you closer to the offer.
+                            </p>
+
+                            <div class="hero-actions">
+                                <a
+                                    routerLink="/interviews"
+                                    class="btn btn-primary"
+                                >
+                                    <i class="bi bi-mic-fill"></i>
+                                    Start mock session
+                                    <i class="bi bi-arrow-right"></i>
+                                </a>
+                                <a
+                                    routerLink="/reports"
+                                    class="btn btn-secondary"
+                                >
+                                    <i class="bi bi-bar-chart-fill"></i>
+                                    View my reports
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="hero-right">
+                            <div class="readiness-ring">
+                                <svg
+                                    width="140"
+                                    height="140"
+                                    viewBox="0 0 120 120"
+                                    aria-label="Readiness score"
+                                >
+                                    <circle
+                                        class="ring-track"
+                                        cx="60"
+                                        cy="60"
+                                        r="48"
+                                        stroke-width="10"
+                                        fill="none"
+                                    ></circle>
+
+                                    <circle
+                                        class="ring-progress"
+                                        cx="60"
+                                        cy="60"
+                                        r="48"
+                                        stroke="url(#readinessGradient)"
+                                        stroke-width="10"
+                                        fill="none"
+                                        stroke-linecap="round"
+                                        [attr.stroke-dasharray]="circumference"
+                                        [attr.stroke-dashoffset]="
+                                            circumference - readinessDash
+                                        "
+                                        transform="rotate(-90 60 60)"
+                                    ></circle>
+
+                                    <defs>
+                                        <linearGradient
+                                            id="readinessGradient"
+                                            x1="0%"
+                                            y1="0%"
+                                            x2="100%"
+                                            y2="100%"
+                                        >
+                                            <stop
+                                                offset="0%"
+                                                stop-color="var(--teal-400)"
+                                            ></stop>
+                                            <stop
+                                                offset="100%"
+                                                stop-color="var(--cyan-400)"
+                                            ></stop>
+                                        </linearGradient>
+                                    </defs>
+
+                                    <text
+                                        x="60"
+                                        y="58"
+                                        text-anchor="middle"
+                                        class="ring-score"
+                                    >
+                                        {{ readinessScore }}%
+                                    </text>
+                                    <text
+                                        x="60"
+                                        y="78"
+                                        text-anchor="middle"
+                                        class="ring-label"
+                                    >
+                                        READINESS
+                                    </text>
+                                </svg>
+                            </div>
+
+                            <div class="hero-mini-stats">
+                                <div class="mini-stat">
+                                    <i
+                                        class="bi bi-fire mini-stat-icon mini-stat-icon--fire"
+                                    ></i>
+                                    <div>
+                                        <strong>{{ dayStreak }}</strong>
+                                        <small>Day streak</small>
+                                    </div>
+                                </div>
+
+                                <div class="mini-stat">
+                                    <i
+                                        class="bi bi-lightning-charge-fill mini-stat-icon mini-stat-icon--karma"
+                                    ></i>
+                                    <div>
+                                        <strong>{{ karmaPoints }}</strong>
+                                        <small>Karma points</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ── Stat grid ── -->
+                <div class="stats-grid">
+                    <app-stat-card
+                        icon='<i class="bi bi-mic-fill"></i>'
+                        [value]="totalSessions.toString()"
+                        label="Mock Sessions Done"
+                        color="teal"
+                        change="this month"
+                        [changePositive]="true"
+                    ></app-stat-card>
+
+                    <app-stat-card
+                        icon='<i class="bi bi-patch-question-fill"></i>'
+                        [value]="totalQuizzes.toString()"
+                        label="Quizzes Completed"
+                        color="cyan"
+                    ></app-stat-card>
+
+                    <app-stat-card
+                        icon='<i class="bi bi-graph-up-arrow"></i>'
+                        [value]="recentScore + '%'"
+                        label="Latest Score"
+                        color="mint"
+                    ></app-stat-card>
+
+                    <app-stat-card
+                        icon='<i class="bi bi-clock-history"></i>'
+                        [value]="hoursStudied + 'h'"
+                        label="Total Study Time"
+                        color="sky"
+                    ></app-stat-card>
+                </div>
+
+                <!-- ── Next session ── -->
+                <section class="next-session-card">
+                    <div class="session-left">
+                        <app-badge variant="primary" [dot]="true"
+                            >Upcoming</app-badge
+                        >
+                        <h3>Next interview session</h3>
+                        <div class="session-meta">
+                            <span class="meta-chip">
+                                <i class="bi bi-calendar-event"></i>
+                                To be scheduled
+                            </span>
+                            <span class="meta-chip">
+                                <i class="bi bi-stopwatch"></i>
+                                45 min
+                            </span>
+                            <app-badge variant="info" shape="rounded"
+                                >Technical</app-badge
+                            >
+                        </div>
+                    </div>
+
+                    <div class="session-right">
+                        <a routerLink="/interviews" class="btn btn-primary">
+                            <i class="bi bi-camera-video-fill"></i>
+                            Join session
+                        </a>
+                        <button class="btn btn-ghost btn-sm" type="button">
+                            Reschedule
+                        </button>
+                    </div>
+                </section>
+
+                <!-- ── Profile completeness ── -->
+                <section class="completion-card">
+                    <div class="completion-header">
+                        <div>
+                            <h3>Profile completeness</h3>
+                            <p>
+                                Complete your profile to get sharper
+                                recommendations.
+                            </p>
+                        </div>
+                        <div
+                            class="completion-score"
+                            [attr.data-tone]="readinessTone"
+                        >
+                            {{ readinessScore }}%
+                        </div>
+                    </div>
+
+                    <div class="completion-bar" aria-hidden="true">
+                        <div
+                            class="completion-bar-fill"
+                            [style.width]="readinessScore + '%'"
+                        ></div>
+                    </div>
+
+                    <div class="completion-list">
+                        <div
+                            *ngFor="let item of profileCompletionItems"
+                            class="completion-item"
+                            [class.done]="item.done"
+                        >
+                            <i
+                                class="bi"
+                                [class.bi-check-circle-fill]="item.done"
+                                [class.bi-circle]="!item.done"
+                            ></i>
+                            <span>{{ item.label }}</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ── Recommendations + Activity ── -->
+                <div class="dashboard-grid-2">
+                    <app-card density="cozy">
+                        <app-section-header
+                            title="Recommended next steps"
+                            subtitle="Tailored to your current progress"
+                        ></app-section-header>
+
+                        <div class="recommendation-list" *ngIf="recommendations.length; else recsEmpty">
+                            <article
+                                class="rec-row"
+                                *ngFor="let rec of recommendations"
+                            >
+                                <div class="rec-icon">
+                                    <i class="bi" [class]="rec.icon"></i>
+                                </div>
+                                <div class="rec-body">
+                                    <div class="rec-head">
+                                        <h4 class="rec-title">
+                                            {{ rec.title }}
+                                        </h4>
+                                        <app-badge
+                                            variant="primary"
+                                            shape="pill"
+                                            size="sm"
+                                            >+{{ rec.xp }} XP</app-badge
+                                        >
+                                    </div>
+                                    <div class="rec-progress">
+                                        <div class="rec-progress-bar">
+                                            <div
+                                                class="rec-progress-fill"
+                                                [style.width]="
+                                                    rec.progress + '%'
+                                                "
+                                            ></div>
+                                        </div>
+                                        <span class="rec-progress-label"
+                                            >{{ rec.progress }}%</span
+                                        >
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                        <ng-template #recsEmpty>
+                            <div class="dash-empty" *ngIf="!dashboardDataLoading">
+                                <i class="bi bi-stars"></i>
+                                <p>
+                                    Your training path will appear here once you
+                                    set goals.
+                                </p>
+                                <a
+                                    routerLink="/training-gamification"
+                                    class="btn btn-secondary btn-sm"
+                                    >Open training</a
+                                >
+                            </div>
+                            <div
+                                class="dash-empty dash-empty--loading"
+                                *ngIf="dashboardDataLoading"
+                            >
+                                <app-skeleton height="48px"></app-skeleton>
+                                <app-skeleton height="48px"></app-skeleton>
+                            </div>
+                        </ng-template>
+                    </app-card>
+
+                    <app-card density="cozy">
+                        <app-section-header
+                            title="Recent activity"
+                            subtitle="Your latest learning actions"
+                        ></app-section-header>
+
+                        <div class="activity-list" *ngIf="recentActivity.length; else activityEmpty">
+                            <div
+                                class="activity-row"
+                                *ngFor="let item of recentActivity"
+                            >
+                                <div
+                                    class="activity-icon"
+                                    [attr.data-tone]="item.tone"
+                                >
+                                    <i class="bi" [class]="item.icon"></i>
+                                </div>
+                                <div class="activity-body">
+                                    <div class="activity-title">
+                                        {{ item.title }}
+                                    </div>
+                                    <div class="activity-subtitle">
+                                        {{ item.subtitle }}
+                                    </div>
+                                </div>
+                                <span class="activity-time">{{
+                                    item.time
+                                }}</span>
+                            </div>
+                        </div>
+                        <ng-template #activityEmpty>
+                            <div class="dash-empty" *ngIf="!dashboardDataLoading">
+                                <i class="bi bi-clock-history"></i>
+                                <p>
+                                    No recent activity yet — your sessions and
+                                    quizzes will show up here.
+                                </p>
+                            </div>
+                            <div
+                                class="dash-empty dash-empty--loading"
+                                *ngIf="dashboardDataLoading"
+                            >
+                                <app-skeleton height="42px"></app-skeleton>
+                                <app-skeleton height="42px"></app-skeleton>
+                                <app-skeleton height="42px"></app-skeleton>
+                            </div>
+                        </ng-template>
+                    </app-card>
+                </div>
+
+                <!-- ── Resources + Trends ── -->
+                <div class="dashboard-grid-2">
+                    <app-card density="cozy">
+                        <app-section-header
+                            title="Saved resources"
+                            subtitle="Helpful content for interview success"
+                        ></app-section-header>
+
+                        <div class="resource-list" *ngIf="savedResources.length; else resourcesEmpty">
+                            <a
+                                class="resource-item"
+                                *ngFor="let resource of savedResources"
+                                href="#"
+                                (click)="(false)"
+                            >
+                                <div class="resource-icon">
+                                    <i class="bi" [class]="resource.icon"></i>
+                                </div>
+                                <div class="resource-body">
+                                    <div class="resource-title">
+                                        {{ resource.title }}
+                                    </div>
+                                    <div class="resource-meta">
+                                        <span>{{ resource.duration }}</span>
+                                        <span class="resource-meta-sep"
+                                            >·</span
+                                        >
+                                        <span>{{ resource.category }}</span>
+                                    </div>
+                                </div>
+                                <i
+                                    class="bi bi-arrow-up-right resource-arrow"
+                                ></i>
+                            </a>
+                        </div>
+                        <ng-template #resourcesEmpty>
+                            <div class="dash-empty" *ngIf="!dashboardDataLoading">
+                                <i class="bi bi-bookmark"></i>
+                                <p>
+                                    Bookmark resources from the library to see
+                                    them here.
+                                </p>
+                                <a
+                                    routerLink="/library"
+                                    class="btn btn-secondary btn-sm"
+                                    >Browse library</a
+                                >
+                            </div>
+                            <div
+                                class="dash-empty dash-empty--loading"
+                                *ngIf="dashboardDataLoading"
+                            >
+                                <app-skeleton height="42px"></app-skeleton>
+                                <app-skeleton height="42px"></app-skeleton>
+                            </div>
+                        </ng-template>
+                    </app-card>
+
+                    <app-card density="cozy">
+                        <app-section-header
+                            title="Performance trends"
+                            subtitle="Charts will become dynamic later"
+                        ></app-section-header>
+
+                        <app-chart-placeholder
+                            title="Progress over time"
+                            subtitle="Profile, interviews, quizzes"
+                        ></app-chart-placeholder>
+                    </app-card>
+                </div>
+
+                <!-- ── Achievements ── -->
+                <app-card density="cozy">
+                    <app-section-header
+                        title="Achievements"
+                        subtitle="Badges you have earned so far"
+                    ></app-section-header>
+
+                    <div
+                        class="badges-grid"
+                        *ngIf="earnedBadges.length; else noBadges"
+                    >
+                        <app-badge-card
+                            *ngFor="let badge of earnedBadges"
+                            [badge]="badge"
+                        ></app-badge-card>
+                    </div>
+
+                    <ng-template #noBadges>
+                        <app-empty-state
+                            title="No badges yet"
+                            description="Complete a mock interview or quiz to earn your first badge."
+                        >
+                            <a routerLink="/interviews" class="btn btn-primary">
+                                Start your first session
+                            </a>
+                        </app-empty-state>
+                    </ng-template>
+                </app-card>
+            </div>
+        </ng-container>
+    </ng-template>
+
+    <ng-template #dashboardEmpty>
+        <app-card density="spacious" elevation="raised">
+            <app-empty-state
+                variant="error"
+                title="We couldn't load your dashboard"
+                description="Your profile data didn't come through. Check your connection and try again."
+            >
+                <app-button (click)="reloadDashboard()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    Retry
+                </app-button>
+            </app-empty-state>
+        </app-card>
+    </ng-template>
+</div>
