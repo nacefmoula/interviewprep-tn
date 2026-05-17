@@ -125,7 +125,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
         with:
           version: "v1.29.15"        # match cluster version
 
@@ -206,7 +206,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: azure/setup-kubectl@v4
+      - uses: azure/setup-kubectl@v5
         with:
           version: "v1.29.15"
 
