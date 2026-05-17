@@ -1,5 +1,5 @@
 # Utilise la même version que ton collègue pour éviter les bugs
-FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
+FROM maven:3.9.14-eclipse-temurin-25-alpine AS builder
 WORKDIR /app
 
 # On copie le pom.xml pour télécharger les dépendances (cache)
