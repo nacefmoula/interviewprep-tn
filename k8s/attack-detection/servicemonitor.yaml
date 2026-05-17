@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: attack-detector
+  namespace: attack-detection
+  labels:
+    app: attack-detector
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: attack-detector
+  namespaceSelector:
+    matchNames:
+      - attack-detection
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s

@@ -1,0 +1,76 @@
+# Minimal RBAC for GitHub Actions to deploy app images into the
+# piclouddoom namespace. Scope = namespace only. No cluster-wide rights.
+#
+# Apply once on k8s-cp1:
+#   kubectl apply -f k8s/rbac/cicd-deployer.yaml
+#
+# Then run scripts/extract-kubeconfig.sh to mint a kubeconfig for the
+# GitHub repo secret KUBECONFIG_PROD.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cicd-deployer
+  namespace: piclouddoom
+---
+# K8s 1.24+ no longer auto-creates SA token secrets — define one explicitly
+# so we have a stable long-lived token to put in a GitHub secret.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cicd-deployer-token
+  namespace: piclouddoom
+  annotations:
+    kubernetes.io/service-account.name: cicd-deployer
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cicd-deployer
+  namespace: piclouddoom
+rules:
+  # Read + patch the workloads we manage
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/status", "deployments/scale"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+
+  # Pod visibility for rollout status + log inspection on failure
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/status"]
+    verbs: ["get", "list", "watch"]
+
+  # Services + endpoints — used by smoke tests
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list"]
+
+  # Events — handy for surfacing failure reasons in CI logs
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+
+  # ConfigMap reads — read-only, no write (writes still go through GitOps later)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cicd-deployer
+  namespace: piclouddoom
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cicd-deployer
+subjects:
+  - kind: ServiceAccount
+    name: cicd-deployer
+    namespace: piclouddoom

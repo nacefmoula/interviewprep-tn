@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: piclouddoom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:24.0.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - start-dev
+            - --import-realm
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          env:
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: KEYCLOAK_ADMIN
+
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: KEYCLOAK_ADMIN_PASSWORD
+
+            - name: KC_DB
+              value: "postgres"
+
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://postgres:5432/keycloakdb"
+
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: POSTGRES_USER
+
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: POSTGRES_PASSWORD
+
+            - name: KC_HOSTNAME
+              value: "auth.interviewprep-tn.me"
+            - name: KC_PROXY_HEADERS
+              value: "xforwarded"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HOSTNAME_STRICT
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+
+            - name: KC_METRICS_ENABLED
+              value: "true"
+
+            - name: JAVA_OPTS_APPEND
+              value: "-Xmx512m -XX:MaxMetaspaceSize=192m"
+
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import/realm-export.json
+              subPath: realm-export.json
+
+            - name: interv-login-theme
+              mountPath: /opt/keycloak/themes/interv/login
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "768Mi"
+            limits:
+              cpu: "1500m"
+              memory: "1536Mi"
+
+          startupProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 36
+
+          readinessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /realms/master
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+
+      volumes:
+        - name: realm-import
+          configMap:
+            name: keycloak-realm
+
+        - name: interv-login-theme
+          configMap:
+            name: keycloak-interv-login-theme
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: piclouddoom
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

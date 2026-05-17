@@ -1,0 +1,93 @@
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+    # Allow ServiceMonitor and PrometheusRule resources from all namespaces.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+
+  service:
+    type: ClusterIP
+
+alertmanager:
+  enabled: true
+  service:
+    type: ClusterIP
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+grafana:
+  enabled: true
+  # No password in git (T-B). With adminPassword unset the kube-prometheus-stack
+  # chart generates a random one into the `<release>-grafana` Secret:
+  #   kubectl -n monitoring get secret <release>-grafana \
+  #     -o jsonpath='{.data.admin-password}' | base64 -d
+  # For a fixed password, create your own Secret and set:
+  #   grafana.admin.existingSecret / userKey / passwordKey  (do NOT inline it).
+  service:
+    type: ClusterIP
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 120
+    timeoutSeconds: 10
+    periodSeconds: 10
+    failureThreshold: 12
+
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 300
+    timeoutSeconds: 30
+    periodSeconds: 20
+    failureThreshold: 10
+
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

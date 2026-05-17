@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics-init
+  namespace: piclouddoom
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: kafka-topics-init
+    spec:
+      restartPolicy: OnFailure
+      enableServiceLinks: false
+      containers:
+        - name: kafka-topics-init
+          image: confluentinc/cp-kafka:7.5.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for Kafka..."
+              until kafka-topics --bootstrap-server kafka:29092 --list >/dev/null 2>&1; do
+                sleep 5
+              done
+
+              echo "Creating Kafka topics..."
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic user.created --partitions 3 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic user.updated --partitions 3 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic user.deleted --partitions 3 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic user.role-changed --partitions 3 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic user.verified --partitions 3 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic user.suspended --partitions 3 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic user.events.DLQ --partitions 1 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic interview.session.completed --partitions 3 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic training.path.created --partitions 2 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic training.path.updated --partitions 2 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic user.badge.earned --partitions 2 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic resource.created --partitions 2 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic resource.updated --partitions 2 --replication-factor 1
+              kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic resource.deleted --partitions 2 --replication-factor 1
+
+              echo "Topics created:"
+              kafka-topics --bootstrap-server kafka:29092 --list | sort
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

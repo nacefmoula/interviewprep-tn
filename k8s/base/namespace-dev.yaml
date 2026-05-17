@@ -1,0 +1,28 @@
+# Dev environment — lives in the same cluster as prod, isolated by namespace.
+# Smaller quota since dev workloads are usually 1×replica + lower memory.
+#
+# Apply once on k8s-cp1:
+#   kubectl apply -f k8s/base/namespace-dev.yaml
+#   kubectl apply -f k8s/rbac/cicd-deployer-dev.yaml
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: piclouddoom-dev
+  labels:
+    env: dev
+    managed-by: cicd
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: piclouddoom-dev-quota
+  namespace: piclouddoom-dev
+spec:
+  hard:
+    pods: "30"
+    requests.cpu: "4"
+    requests.memory: 6Gi
+    limits.cpu: "8"
+    limits.memory: 12Gi
+    persistentvolumeclaims: "5"

@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: attack-detector-rules
+  namespace: attack-detection
+  labels:
+    app: attack-detector
+    release: monitoring
+spec:
+  groups:
+    - name: attack-detector.rules
+      rules:
+        - alert: AIThreatDetected
+          expr: max_over_time(attack_label[1m]) >= 1
+          for: 15s
+          labels:
+            severity: warning
+            component: attack-detector
+          annotations:
+            summary: "AI attack detector flagged suspicious traffic"
+            description: "The attack detector reported attack_label=1 for namespace {{ $labels.target_namespace }} and target {{ $labels.target_service }}."
+
+        - alert: AttackDetectorDown
+          expr: absent(attack_detector_up)
+          for: 2m
+          labels:
+            severity: critical
+            component: attack-detector
+          annotations:
+            summary: "Attack detector metrics disappeared"
+            description: "Prometheus is no longer receiving attack_detector_up from the attack detector."

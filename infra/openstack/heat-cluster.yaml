@@ -1,0 +1,845 @@
+heat_template_version: 2018-08-31
+
+description: >
+  Kubernetes 5 nodes (1 control-plane + 4 workers) on OpenStack, Boot-from-Volume.
+  Layout (Pi-CloudDOOM hybrid deployment, resource-aware):
+    - cp1, w1        -> compute2nacef
+    - w2, w3         -> compute3ayoub
+    - w4             -> compute1yass
+  Zero human interaction: cp1 bootstraps Ansible and deploys Kubernetes + Calico automatically.
+  Bootstrap runs via systemd service+timer (retryable) so cloud-init finishes cleanly.
+
+parameters:
+  key_name:
+    type: string
+    default: heat-eval-key
+
+  image:
+    type: string
+    default: ubuntu-22.04
+
+  cp_flavor:
+    type: string
+    default: k8s.cp.vol
+
+  worker_flavor:
+    type: string
+    default: k8s.w.vol
+
+  # Placement (Pi-CloudDOOM hybrid deployment layout)
+  # 1 control-plane + 1 worker on compute2nacef
+  # 2 workers on compute3ayoub
+  # 1 worker on compute1yass
+  az_cp1:
+    type: string
+    default: "nova:compute2nacef"
+
+  az_w1:
+    type: string
+    default: "nova:compute2nacef"
+  az_w2:
+    type: string
+    default: "nova:compute3ayoub"
+
+  az_w3:
+    type: string
+    default: "nova:compute3ayoub"
+  az_w4:
+    type: string
+    default: "nova:compute1yass"
+
+  k8s_net:
+    type: string
+    default: k8s-net
+
+  external_network:
+    type: string
+    default: external-net
+
+  admin_cidr:
+    type: string
+    default: 0.0.0.0/0
+
+  # Internal K8s network CIDR (for security group rules)
+  k8s_net_cidr:
+    type: string
+    default: 10.50.0.0/24
+
+  cp_root_volume_size_gb:
+    type: number
+    default: 20
+
+  worker_root_volume_size_gb:
+    type: number
+    default: 20
+
+  pod_cidr:
+    type: string
+    default: 10.244.0.0/16
+
+  kubernetes_version:
+    type: string
+    default: "1.29.15"
+
+  ansible_repo_url:
+    type: string
+    default: "https://github.com/med-aziz-benamor/ansible-k8s.git"
+
+  ansible_repo_branch:
+    type: string
+    default: "main"
+
+  ansible_private_key:
+    type: string
+    hidden: true
+    default: ""
+
+  # Optional: pin chart version (deterministic). Empty = latest
+  kube_prom_stack_chart_version:
+    type: string
+    default: ""
+
+resources:
+  ################################
+  # Security Group
+  ################################
+  k8s_sg:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: k8s-sg
+      description: Kubernetes base cluster
+      rules:
+        # SSH
+        - protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+          remote_ip_prefix: { get_param: admin_cidr }
+
+        # SSH internal access for Ansible cp1 -> workers
+        - protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+          remote_ip_prefix: { get_param: k8s_net_cidr }
+
+        # ICMP
+        - protocol: icmp
+          remote_ip_prefix: { get_param: admin_cidr }
+
+        # Kubernetes API (external/admin only)
+        - protocol: tcp
+          port_range_min: 6443
+          port_range_max: 6443
+          remote_ip_prefix: { get_param: admin_cidr }
+
+        # Kubernetes API internal access for workers
+        - protocol: tcp
+          port_range_min: 6443
+          port_range_max: 6443
+          remote_ip_prefix: { get_param: k8s_net_cidr }
+
+        # kubelet + control-plane ports (internal only)
+        - protocol: tcp
+          port_range_min: 10250
+          port_range_max: 10259
+          remote_ip_prefix: { get_param: k8s_net_cidr }
+
+        # etcd (internal only)
+        - protocol: tcp
+          port_range_min: 2379
+          port_range_max: 2380
+          remote_ip_prefix: { get_param: k8s_net_cidr }
+
+        # Calico VXLAN (internal only)
+        - protocol: udp
+          port_range_min: 4789
+          port_range_max: 4789
+          remote_ip_prefix: { get_param: k8s_net_cidr }
+
+        # Calico BGP (optional; internal only)
+        - protocol: tcp
+          port_range_min: 179
+          port_range_max: 179
+          remote_ip_prefix: { get_param: k8s_net_cidr }
+
+        # NodePort range (admin/external access)
+        - protocol: tcp
+          port_range_min: 30000
+          port_range_max: 32767
+          remote_ip_prefix: { get_param: admin_cidr }
+
+        # Optional direct ports (only if you pin them)
+        - protocol: tcp
+          port_range_min: 3000
+          port_range_max: 3000
+          remote_ip_prefix: { get_param: admin_cidr }
+
+        - protocol: tcp
+          port_range_min: 9090
+          port_range_max: 9090
+          remote_ip_prefix: { get_param: admin_cidr }
+
+  ################################
+  # Ports
+  ################################
+  cp1_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: k8s_net }
+      security_groups: [{ get_resource: k8s_sg }]
+
+  w1_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: k8s_net }
+      security_groups: [{ get_resource: k8s_sg }]
+
+  w2_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: k8s_net }
+      security_groups: [{ get_resource: k8s_sg }]
+
+  w3_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: k8s_net }
+      security_groups: [{ get_resource: k8s_sg }]
+
+  w4_port:
+    type: OS::Neutron::Port
+    properties:
+      network: { get_param: k8s_net }
+      security_groups: [{ get_resource: k8s_sg }]
+
+  ################################
+  # Root volumes (boot-from-volume)
+  ################################
+  cp1_root_vol:
+    type: OS::Cinder::Volume
+    deletion_policy: Delete
+    properties:
+      name: k8s-cp1-root
+      size: { get_param: cp_root_volume_size_gb }
+      image: { get_param: image }
+
+  w1_root_vol:
+    type: OS::Cinder::Volume
+    deletion_policy: Delete
+    properties:
+      name: k8s-w1-root
+      size: { get_param: worker_root_volume_size_gb }
+      image: { get_param: image }
+
+  w2_root_vol:
+    type: OS::Cinder::Volume
+    deletion_policy: Delete
+    properties:
+      name: k8s-w2-root
+      size: { get_param: worker_root_volume_size_gb }
+      image: { get_param: image }
+
+  w3_root_vol:
+    type: OS::Cinder::Volume
+    deletion_policy: Delete
+    properties:
+      name: k8s-w3-root
+      size: { get_param: worker_root_volume_size_gb }
+      image: { get_param: image }
+
+  w4_root_vol:
+    type: OS::Cinder::Volume
+    deletion_policy: Delete
+    properties:
+      name: k8s-w4-root
+      size: { get_param: worker_root_volume_size_gb }
+      image: { get_param: image }
+
+  ################################
+  # Common cloud-init for non-bootstrap nodes
+  ################################
+  common_cloudinit:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config:
+        package_update: true
+        package_upgrade: false
+        packages: [curl, python3]
+        runcmd:
+          - [ bash, -lc, "swapoff -a || true" ]
+          - [ bash, -lc, "sed -i '/ swap / s/^/#/g' /etc/fstab || true" ]
+
+  ################################
+  # Floating IP ONLY for cp1 (external/admin use)
+  ################################
+  cp1_fip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: external_network }
+
+  ################################
+  # cp1 cloud-init: systemd bootstrap + robust Ansible
+  ################################
+  cp1_cloudinit:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config:
+        package_update: true
+        package_upgrade: false
+        packages: [curl, git, jq]
+        write_files:
+          - path: /home/ubuntu/.ssh/config
+            permissions: "0600"
+            content: |
+              Host *
+                StrictHostKeyChecking no
+                UserKnownHostsFile=/dev/null
+
+          # systemd service (retryable)
+          - path: /etc/systemd/system/k8s-bootstrap.service
+            permissions: "0644"
+            content: |
+              [Unit]
+              Description=K8s bootstrap via Ansible (retryable)
+              After=network-online.target
+              Wants=network-online.target
+              ConditionPathExists=!/var/lib/bootstrap-k8s.done
+
+              [Service]
+              Type=oneshot
+              ExecStart=/usr/local/bin/bootstrap-k8s.sh
+              StandardOutput=journal+console
+              StandardError=journal+console
+              TimeoutStartSec=0
+
+              [Install]
+              WantedBy=multi-user.target
+
+          # timer: keep retrying every 2 minutes until done marker exists
+          - path: /etc/systemd/system/k8s-bootstrap.timer
+            permissions: "0644"
+            content: |
+              [Unit]
+              Description=Run K8s bootstrap periodically until done
+
+              [Timer]
+              OnBootSec=90
+              OnUnitActiveSec=120
+              Unit=k8s-bootstrap.service
+              Persistent=true
+
+              [Install]
+              WantedBy=timers.target
+
+          # The bootstrap script
+          - path: /usr/local/bin/bootstrap-k8s.sh
+            permissions: "0755"
+            content:
+              str_replace:
+                template: |
+                  #!/bin/bash
+                  set -euo pipefail
+                  export DEBIAN_FRONTEND=noninteractive
+                  export HOME=/root
+
+                  CP1_IP="__CP1_IP__"
+                  W1_IP="__W1_IP__"
+                  W2_IP="__W2_IP__"
+                  W3_IP="__W3_IP__"
+                  W4_IP="__W4_IP__"
+                  FIP="__FIP__"
+
+                  POD_CIDR="__POD_CIDR__"
+                  K8S_VER="__K8S_VER__"
+                  REPO_URL="__REPO_URL__"
+                  REPO_BRANCH="__REPO_BRANCH__"
+                  CHART_VER="__CHART_VER__"
+                  ANS_KEY="__ANSIBLE_KEY__"
+
+                  LOG=/var/log/bootstrap-k8s.log
+                  mkdir -p /var/log /var/lib
+                  exec > >(tee -a "$LOG") 2>&1
+
+                  MARKER=/var/lib/bootstrap-k8s.done
+                  if [ -f "$MARKER" ]; then
+                    echo "Bootstrap already completed at $(cat "$MARKER"). Exiting."
+                    exit 0
+                  fi
+
+                  echo "========== $(date -Is) BOOTSTRAP START =========="
+
+                  echo "[A] Make APT resilient (retries + timeouts)"
+                  cat >/etc/apt/apt.conf.d/99retries <<'EOF'
+                  Acquire::Retries "10";
+                  Acquire::http::Timeout "120";
+                  Acquire::https::Timeout "120";
+                  Acquire::ftp::Timeout "120";
+                  Dpkg::Use-Pty "0";
+                  EOF
+
+                  echo "[0] Base prereqs (swap off)"
+                  swapoff -a || true
+                  sed -i '/ swap / s/^/#/g' /etc/fstab || true
+
+                  echo "[1] apt-get update (retry loop)"
+                  for i in $(seq 1 10); do
+                    if apt-get update; then break; fi
+                    echo "apt-get update failed, retry $i/10 ..."
+                    sleep 10
+                  done
+
+                  echo "[2] Install deps"
+                  apt-get install -y python3 python3-apt apt-transport-https ca-certificates gnupg lsb-release jq curl git
+
+                  echo "[3] Install Ansible"
+                  apt-get install -y ansible
+
+                  echo "[4] Fix ubuntu HOME perms (Helm needs ~/.config and ~/.cache)"
+                  chown -R ubuntu:ubuntu /home/ubuntu || true
+                  chmod 755 /home/ubuntu || true
+                  sudo -u ubuntu -H mkdir -p /home/ubuntu/.config /home/ubuntu/.cache /home/ubuntu/.local/share || true
+
+                  echo "[5] Force Ansible SSH behavior + tmp dirs"
+                  mkdir -p /etc/ansible
+                  cat > /etc/ansible/ansible.cfg <<'EOF'
+                  [defaults]
+                  host_key_checking = False
+                  retry_files_enabled = False
+                  interpreter_python = auto_silent
+                  stdout_callback = yaml
+                  timeout = 60
+
+                  [ssh_connection]
+                  ssh_args = -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+                  pipelining = True
+                  EOF
+
+                  mkdir -p /home/ubuntu/.ansible/tmp
+                  chown -R ubuntu:ubuntu /home/ubuntu/.ansible || true
+                  chmod 700 /home/ubuntu/.ansible /home/ubuntu/.ansible/tmp || true
+                  export ANSIBLE_HOST_KEY_CHECKING=False
+                  export ANSIBLE_LOCAL_TEMP=/home/ubuntu/.ansible/tmp
+
+                  echo "[6] Inject SSH private key (if provided)"
+                  mkdir -p /home/ubuntu/.ssh
+                  chmod 700 /home/ubuntu/.ssh
+                  if [ -n "$ANS_KEY" ] && [ "$ANS_KEY" != "" ]; then
+                    printf '%s\n' "$ANS_KEY" > /home/ubuntu/.ssh/id_rsa
+                    chmod 600 /home/ubuntu/.ssh/id_rsa
+                  fi
+                  chown -R ubuntu:ubuntu /home/ubuntu/.ssh || true
+
+                  echo "[7] Clone or refresh repo (optional) + Git safe.directory fix"
+                  mkdir -p /opt
+                  if [ ! -d /opt/ansible-k8s ]; then
+                    mkdir -p /opt/ansible-k8s
+                  fi
+                  chown -R ubuntu:ubuntu /opt/ansible-k8s || true
+
+                  # Mark repo as safe for both root and ubuntu to avoid "dubious ownership"
+                  sudo -u ubuntu -H git config --global --add safe.directory /opt/ansible-k8s || true
+                  git config --global --add safe.directory /opt/ansible-k8s || true
+
+                  if [ ! -d /opt/ansible-k8s/.git ]; then
+                    echo "Cloning $REPO_URL ($REPO_BRANCH) ..."
+                    sudo -u ubuntu -H git clone -b "$REPO_BRANCH" "$REPO_URL" /opt/ansible-k8s || true
+                  else
+                    echo "Refreshing existing repo ..."
+                    cd /opt/ansible-k8s
+                    sudo -u ubuntu -H git fetch --all || true
+                    sudo -u ubuntu -H git reset --hard "origin/$REPO_BRANCH" || true
+                  fi
+                  chown -R ubuntu:ubuntu /opt/ansible-k8s || true
+
+                  echo "[8] Generate inventory"
+                  cat > /opt/ansible-k8s/inventory.ini <<EOF
+                  [controlplane]
+                  k8s-cp1 ansible_host=${CP1_IP}
+
+                  [workers]
+                  k8s-w1 ansible_host=${W1_IP}
+                  k8s-w2 ansible_host=${W2_IP}
+                  k8s-w3 ansible_host=${W3_IP}
+                  k8s-w4 ansible_host=${W4_IP}
+
+                  [all:vars]
+                  ansible_user=ubuntu
+                  ansible_ssh_private_key_file=/home/ubuntu/.ssh/id_rsa
+                  pod_cidr=${POD_CIDR}
+                  control_plane_endpoint=${CP1_IP}:6443
+                  kubernetes_version=${K8S_VER}
+                  EOF
+                  chown ubuntu:ubuntu /opt/ansible-k8s/inventory.ini || true
+
+                  echo "[9] Create minimal ROLES-based structure (safe YAML)"
+                  mkdir -p /opt/ansible-k8s/roles/kubernetes/tasks
+                  mkdir -p /opt/ansible-k8s/group_vars/all
+
+                  cat > /opt/ansible-k8s/group_vars/all/main.yml <<EOF
+                  pod_cidr: "${POD_CIDR}"
+                  control_plane_endpoint: "${CP1_IP}:6443"
+                  kubernetes_version: "${K8S_VER}"
+                  kube_prom_stack_chart_version: "${CHART_VER}"
+                  EOF
+
+                  cat > /opt/ansible-k8s/roles/kubernetes/tasks/main.yml <<'EOF'
+                  - name: "Wait for cloud-init to finish"
+                    become: true
+                    shell: |
+                      cloud-init status --wait || true
+                    changed_when: false
+
+                  - name: "Wait for apt/dpkg locks to be released"
+                    become: true
+                    shell: |
+                      while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+                            fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+                            fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+                        echo "Waiting for apt/dpkg lock..."
+                        sleep 10
+                      done
+                      dpkg --configure -a || true
+                    changed_when: false
+
+                  - name: "Disable swap"
+                    become: true
+                    shell: |
+                      swapoff -a || true
+                      sed -i '/ swap / s/^/#/g' /etc/fstab || true
+
+                  - name: "Install base packages"
+                    become: true
+                    apt:
+                      update_cache: yes
+                      name:
+                        - curl
+                        - apt-transport-https
+                        - ca-certificates
+                        - gnupg
+                        - lsb-release
+                        - psmisc
+                      state: present
+                    register: base_packages_result
+                    retries: 6
+                    delay: 20
+                    until: base_packages_result is succeeded
+
+                  - name: "Install containerd"
+                    become: true
+                    apt:
+                      name: containerd
+                      state: present
+                    register: containerd_install_result
+                    retries: 6
+                    delay: 20
+                    until: containerd_install_result is succeeded
+
+                  - name: "Configure containerd (SystemdCgroup=true)"
+                    become: true
+                    shell: |
+                      mkdir -p /etc/containerd
+                      containerd config default > /etc/containerd/config.toml
+                      sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+                      systemctl enable --now containerd
+                      systemctl restart containerd
+
+                  - name: "Load kernel modules"
+                    become: true
+                    copy:
+                      dest: /etc/modules-load.d/k8s.conf
+                      content: |
+                        overlay
+                        br_netfilter
+
+                  - name: "Apply sysctl for k8s"
+                    become: true
+                    copy:
+                      dest: /etc/sysctl.d/k8s.conf
+                      content: |
+                        net.bridge.bridge-nf-call-iptables  = 1
+                        net.bridge.bridge-nf-call-ip6tables = 1
+                        net.ipv4.ip_forward                 = 1
+
+                  - name: "Enable kernel modules and sysctl"
+                    become: true
+                    shell: |
+                      modprobe overlay || true
+                      modprobe br_netfilter || true
+                      sysctl --system
+
+                  - name: "Add Kubernetes apt repo key"
+                    become: true
+                    shell: |
+                      mkdir -p /etc/apt/keyrings
+                      curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key \
+                        | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+                    args:
+                      creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+                  - name: "Add Kubernetes apt repo"
+                    become: true
+                    copy:
+                      dest: /etc/apt/sources.list.d/kubernetes.list
+                      content: |
+                        deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /
+
+                  - name: "Install kubelet kubeadm kubectl"
+                    become: true
+                    apt:
+                      update_cache: yes
+                      name:
+                        - "kubelet={{ kubernetes_version }}-*"
+                        - "kubeadm={{ kubernetes_version }}-*"
+                        - "kubectl={{ kubernetes_version }}-*"
+                      state: present
+                    register: kube_packages_result
+                    retries: 6
+                    delay: 20
+                    until: kube_packages_result is succeeded
+
+                  - name: "Hold Kubernetes packages"
+                    become: true
+                    shell: |
+                      apt-mark hold kubelet kubeadm kubectl
+
+                  - name: "kubeadm init (cp1 only, single control-plane)"
+                    become: true
+                    shell: |
+                      kubeadm init \
+                        --control-plane-endpoint {{ control_plane_endpoint }} \
+                        --pod-network-cidr {{ pod_cidr }} \
+                        --kubernetes-version v{{ kubernetes_version }}
+                    args:
+                      creates: /etc/kubernetes/admin.conf
+                    when: inventory_hostname == "k8s-cp1"
+
+                  - name: "Setup kubeconfig for ubuntu (cp1 only)"
+                    become: true
+                    shell: |
+                      mkdir -p /home/ubuntu/.kube
+                      cp /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+                      chown -R ubuntu:ubuntu /home/ubuntu/.kube
+                    when: inventory_hostname == "k8s-cp1"
+
+                  - name: "Install Calico operator (cp1 only)"
+                    become_user: ubuntu
+                    shell: |
+                      kubectl apply --server-side --force-conflicts -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.2/manifests/tigera-operator.yaml
+                    when: inventory_hostname == "k8s-cp1"
+
+                  - name: "Configure Calico with explicit pod CIDR and VXLAN (cp1 only)"
+                    become_user: ubuntu
+                    shell: |
+                      cat <<CALICOEOF | kubectl apply -f -
+                      apiVersion: operator.tigera.io/v1
+                      kind: Installation
+                      metadata:
+                        name: default
+                      spec:
+                        calicoNetwork:
+                          ipPools:
+                          - blockSize: 26
+                            cidr: {{ pod_cidr }}
+                            encapsulation: VXLAN
+                            natOutgoing: Enabled
+                            nodeSelector: all()
+                      CALICOEOF
+                    when: inventory_hostname == "k8s-cp1"
+
+                  - name: "Wait for API readyz (cp1 only)"
+                    become_user: ubuntu
+                    shell: |
+                      for i in $(seq 1 180); do
+                        kubectl get --raw='/readyz?verbose' >/dev/null 2>&1 && exit 0
+                        sleep 5
+                      done
+                      exit 1
+                    when: inventory_hostname == "k8s-cp1"
+
+                  - name: "Wait for control-plane node Ready after Calico (cp1 only)"
+                    become_user: ubuntu
+                    shell: |
+                      kubectl wait --for=condition=Ready node/k8s-cp1 --timeout=30m
+                    when: inventory_hostname == "k8s-cp1"
+
+                  - name: "Create join command base (cp1)"
+                    become: true
+                    shell: kubeadm token create --print-join-command
+                    register: join_base_out
+                    when: inventory_hostname == "k8s-cp1"
+
+                  - name: "Join workers"
+                    become: true
+                    shell: "{{ hostvars['k8s-cp1'].join_base_out.stdout }}"
+                    args:
+                      creates: /etc/kubernetes/kubelet.conf
+                    when: inventory_hostname in groups['workers']
+
+                  - name: "Wait for all nodes Ready after workers join (cp1 only)"
+                    become_user: ubuntu
+                    shell: |
+                      kubectl wait --for=condition=Ready nodes --all --timeout=45m
+                    when: inventory_hostname == "k8s-cp1"
+                  EOF
+
+                  cat > /opt/ansible-k8s/site.yml <<'EOF'
+                  - name: Kubernetes cluster (roles)
+                    hosts: all
+                    become: true
+                    roles:
+                      - kubernetes
+                  EOF
+
+                  chown -R ubuntu:ubuntu /opt/ansible-k8s || true
+
+                  echo "[10] Run ROLES-based deployment"
+                  cd /opt/ansible-k8s
+                  sudo -u ubuntu -H ansible -i inventory.ini all -m ping
+                  sudo -u ubuntu -H ansible-playbook -i inventory.ini site.yml
+
+                  echo "[11] Print final cluster status"
+                  sudo -u ubuntu -H kubectl get nodes -o wide || true
+                  sudo -u ubuntu -H kubectl get pods -A -o wide || true
+                  echo
+
+                  date -Is > "$MARKER"
+                  echo "========== $(date -Is) BOOTSTRAP DONE =========="
+                params:
+                  "__CP1_IP__": { get_attr: [cp1_port, fixed_ips, 0, ip_address] }
+                  "__W1_IP__":  { get_attr: [w1_port, fixed_ips, 0, ip_address] }
+                  "__W2_IP__":  { get_attr: [w2_port, fixed_ips, 0, ip_address] }
+                  "__W3_IP__":  { get_attr: [w3_port, fixed_ips, 0, ip_address] }
+                  "__W4_IP__":  { get_attr: [w4_port, fixed_ips, 0, ip_address] }
+                  "__FIP__":    { get_attr: [cp1_fip, floating_ip_address] }
+                  "__POD_CIDR__": { get_param: pod_cidr }
+                  "__K8S_VER__":  { get_param: kubernetes_version }
+                  "__REPO_URL__": { get_param: ansible_repo_url }
+                  "__REPO_BRANCH__": { get_param: ansible_repo_branch }
+                  "__ANSIBLE_KEY__": { get_param: ansible_private_key }
+                  "__CHART_VER__": { get_param: kube_prom_stack_chart_version }
+
+        runcmd:
+          - [ bash, -lc, "swapoff -a || true" ]
+          - [ bash, -lc, "sed -i '/ swap / s/^/#/g' /etc/fstab || true" ]
+          - [ bash, -lc, "mkdir -p /home/ubuntu/.ssh && chmod 700 /home/ubuntu/.ssh && chown -R ubuntu:ubuntu /home/ubuntu/.ssh || true" ]
+          - [ bash, -lc, "systemctl daemon-reload" ]
+          - [ bash, -lc, "systemctl enable --now k8s-bootstrap.timer" ]
+          - [ bash, -lc, "echo 'Bootstrap timer enabled. Watch: journalctl -fu k8s-bootstrap.service ; tail -f /var/log/bootstrap-k8s.log'" ]
+
+  ################################
+  # Servers
+  ################################
+  k8s_cp1:
+    type: OS::Nova::Server
+    depends_on: [cp1_port, cp1_root_vol, cp1_cloudinit]
+    properties:
+      name: k8s-cp1
+      availability_zone: { get_param: az_cp1 }
+      flavor: { get_param: cp_flavor }
+      key_name: { get_param: key_name }
+      config_drive: true
+      networks: [{ port: { get_resource: cp1_port } }]
+      user_data_format: RAW
+      user_data: { get_resource: cp1_cloudinit }
+      block_device_mapping_v2:
+        - boot_index: 0
+          volume_id: { get_resource: cp1_root_vol }
+          delete_on_termination: true
+
+  k8s_w1:
+    type: OS::Nova::Server
+    depends_on: [w1_port, w1_root_vol, common_cloudinit]
+    properties:
+      name: k8s-w1
+      availability_zone: { get_param: az_w1 }
+      flavor: { get_param: worker_flavor }
+      key_name: { get_param: key_name }
+      config_drive: true
+      networks: [{ port: { get_resource: w1_port } }]
+      user_data_format: RAW
+      user_data: { get_resource: common_cloudinit }
+      block_device_mapping_v2:
+        - boot_index: 0
+          volume_id: { get_resource: w1_root_vol }
+          delete_on_termination: true
+
+  k8s_w2:
+    type: OS::Nova::Server
+    depends_on: [w2_port, w2_root_vol, common_cloudinit]
+    properties:
+      name: k8s-w2
+      availability_zone: { get_param: az_w2 }
+      flavor: { get_param: worker_flavor }
+      key_name: { get_param: key_name }
+      config_drive: true
+      networks: [{ port: { get_resource: w2_port } }]
+      user_data_format: RAW
+      user_data: { get_resource: common_cloudinit }
+      block_device_mapping_v2:
+        - boot_index: 0
+          volume_id: { get_resource: w2_root_vol }
+          delete_on_termination: true
+
+  k8s_w3:
+    type: OS::Nova::Server
+    depends_on: [w3_port, w3_root_vol, common_cloudinit]
+    properties:
+      name: k8s-w3
+      availability_zone: { get_param: az_w3 }
+      flavor: { get_param: worker_flavor }
+      key_name: { get_param: key_name }
+      config_drive: true
+      networks: [{ port: { get_resource: w3_port } }]
+      user_data_format: RAW
+      user_data: { get_resource: common_cloudinit }
+      block_device_mapping_v2:
+        - boot_index: 0
+          volume_id: { get_resource: w3_root_vol }
+          delete_on_termination: true
+
+  k8s_w4:
+    type: OS::Nova::Server
+    depends_on: [w4_port, w4_root_vol, common_cloudinit]
+    properties:
+      name: k8s-w4
+      availability_zone: { get_param: az_w4 }
+      flavor: { get_param: worker_flavor }
+      key_name: { get_param: key_name }
+      config_drive: true
+      networks: [{ port: { get_resource: w4_port } }]
+      user_data_format: RAW
+      user_data: { get_resource: common_cloudinit }
+      block_device_mapping_v2:
+        - boot_index: 0
+          volume_id: { get_resource: w4_root_vol }
+          delete_on_termination: true
+
+  ################################
+  # Floating IP association
+  ################################
+  cp1_fip_assoc:
+    type: OS::Neutron::FloatingIPAssociation
+    depends_on: [k8s_cp1]
+    properties:
+      floatingip_id: { get_resource: cp1_fip }
+      port_id: { get_resource: cp1_port }
+
+outputs:
+  cp1_floating_ip:
+    description: Floating IP for k8s-cp1 (external/admin access)
+    value: { get_attr: [cp1_fip, floating_ip_address] }
+
+  cp1_fixed_ip:
+    description: Fixed IP for k8s-cp1 (internal cluster endpoint)
+    value: { get_attr: [cp1_port, fixed_ips, 0, ip_address] }
+
+  w1_fixed_ip:
+    value: { get_attr: [w1_port, fixed_ips, 0, ip_address] }
+
+  w2_fixed_ip:
+    value: { get_attr: [w2_port, fixed_ips, 0, ip_address] }
+
+  w3_fixed_ip:
+    value: { get_attr: [w3_port, fixed_ips, 0, ip_address] }
+
+  w4_fixed_ip:
+    value: { get_attr: [w4_port, fixed_ips, 0, ip_address] }

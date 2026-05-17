@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: piclouddoom-quota
+  namespace: piclouddoom
+spec:
+  hard:
+    pods: "50"
+    # Bumped 2026-05-11 — rolling updates need slack for temporary 2×replica
+    # spike. Original 8/12Gi was tight enough that 4 of 7 services failed to
+    # create new ReplicaSets during the first prod cutover.
+    requests.cpu: "14"
+    requests.memory: 20Gi
+    limits.cpu: "28"
+    limits.memory: 40Gi
+    persistentvolumeclaims: "10"

@@ -1,0 +1,219 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: user-uploads-pvc
+  namespace: piclouddoom
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: piclouddoom
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: user-service
+          image: docker.io/azizbna/pi-clouddoom-user-service:cv-ollama-fast-v2
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+
+          env:
+            - name: SERVER_PORT
+              value: "8081"
+
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://postgres:5432/userdb"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: POSTGRES_PASSWORD
+
+            - name: SPRING_REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: SPRING_REDIS_HOST
+            - name: SPRING_REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: SPRING_REDIS_PORT
+            - name: SPRING_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: REDIS_PASSWORD
+
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+
+            - name: KEYCLOAK_ISSUER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KEYCLOAK_ISSUER_URI
+            - name: KEYCLOAK_JWK_SET_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KEYCLOAK_JWK_SET_URI
+            - name: KEYCLOAK_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KEYCLOAK_SERVER_URL
+            - name: KEYCLOAK_REALM
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KEYCLOAK_REALM
+            - name: KEYCLOAK_CLIENT_ID
+              value: "user-service"
+
+            - name: APP_UPLOADS_DIR
+              value: "/app/uploads"
+
+            # Legacy Ollama vars — kept for rollback safety. The current
+            # CvAiParsingService uses Groq (below). Remove these once Groq
+            # has been verified in prod.
+            - name: APP_OLLAMA_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_OLLAMA_BASE_URL
+            - name: APP_OLLAMA_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_OLLAMA_MODEL
+            - name: APP_OLLAMA_TIMEOUT_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_OLLAMA_TIMEOUT_SECONDS
+
+            # Groq — primary AI provider for CV parsing
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: GROQ_API_KEY
+            - name: GROQ_BASE_URL
+              value: "https://api.groq.com"
+            - name: GROQ_MODEL
+              value: "llama-3.3-70b-versatile"
+
+            - name: GOOGLE_AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: GOOGLE_AI_API_KEY
+            - name: GOOGLE_AI_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GOOGLE_AI_BASE_URL
+            - name: GOOGLE_AI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GOOGLE_AI_MODEL
+            - name: GOOGLE_AI_FALLBACK_MODELS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GOOGLE_AI_FALLBACK_MODELS
+            - name: GOOGLE_AI_TEMPERATURE
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GOOGLE_AI_TEMPERATURE
+            - name: GOOGLE_AI_MAX_OUTPUT_TOKENS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GOOGLE_AI_MAX_OUTPUT_TOKENS
+
+          volumeMounts:
+            - name: user-uploads
+              mountPath: /app/uploads
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1500m"
+              memory: "1Gi"
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 24
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+
+      volumes:
+        - name: user-uploads
+          persistentVolumeClaim:
+            claimName: user-uploads-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: piclouddoom
+spec:
+  selector:
+    app: user-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081

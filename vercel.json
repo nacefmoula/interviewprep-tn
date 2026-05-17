@@ -1,0 +1,9 @@
+{
+  "buildCommand": "cd frontend && npm ci && npm run build -- --configuration production",
+  "outputDirectory": "frontend/dist/interviewpreptn/browser",
+  "installCommand": "cd frontend && npm ci",
+  "framework": "angular",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

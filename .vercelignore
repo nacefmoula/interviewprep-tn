@@ -1,0 +1,19 @@
+# Backend services — not needed for Vercel frontend build
+ai-training-path/
+community-service/
+interview-service/
+mentorship-service/
+quiz-service/
+resource-service/
+training-service/
+user-service/
+kokoro/
+
+# Infrastructure
+infra/
+
+# Misc
+*.md
+*.postman_collection.json
+*.postman_environment.json
+CAREER_FUNCTIONS.md

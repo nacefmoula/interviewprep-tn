@@ -1,0 +1,41 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-headers
+  namespace: piclouddoom
+spec:
+  headers:
+    customRequestHeaders:
+      Origin: ""
+    customResponseHeaders:
+      Access-Control-Allow-Origin: "https://interviewprep-tn.me"
+      Access-Control-Allow-Credentials: "true"
+      Access-Control-Expose-Headers: "Authorization,Content-Type"
+      Vary: "Origin"
+    accessControlAllowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - PATCH
+      - OPTIONS
+    accessControlAllowOriginList:
+      - "https://interviewprep-tn.me"
+      - "https://www.interviewprep-tn.me"
+      - "https://api.interviewprep-tn.me"
+      - "https://auth.interviewprep-tn.me"
+      - "http://localhost:4200"
+    accessControlAllowHeaders:
+      - Authorization
+      - Content-Type
+      - Accept
+      - Origin
+      - X-Requested-With
+      - Cache-Control
+      - Pragma
+    accessControlExposeHeaders:
+      - Authorization
+      - Content-Type
+    accessControlAllowCredentials: true
+    accessControlMaxAge: 100
+    addVaryHeader: true

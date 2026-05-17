@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: interview-service
+  namespace: piclouddoom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: interview-service
+  template:
+    metadata:
+      labels:
+        app: interview-service
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: interview-service
+          image: docker.io/azizbna/pi-clouddoom-interview-service:interview-string-event-v1
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8082
+
+          env:
+            - name: SERVER_PORT
+              value: "8082"
+
+            # Database
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://postgres:5432/interviewdb"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: POSTGRES_PASSWORD
+
+            # Keycloak
+            - name: KEYCLOAK_ISSUER_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KEYCLOAK_ISSUER_URI
+            - name: KEYCLOAK_JWK_SET_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KEYCLOAK_JWK_SET_URI
+
+            # Kafka
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            # AI / voice dependencies
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: GROQ_API_KEY
+            - name: GROQ_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: GROQ_MODEL
+
+            - name: APP_TTS_KOKORO_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: APP_TTS_KOKORO_BASE_URL
+            - name: STT_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: STT_PROVIDER
+            - name: WHISPER_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: WHISPER_BASE_URL
+
+            # Optional avatar/video provider values
+            - name: SIMLI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SIMLI_API_KEY
+                  optional: true
+            - name: SIMLI_FACE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SIMLI_FACE_ID
+                  optional: true
+            - name: SIMLI_TTS_VOICE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SIMLI_TTS_VOICE_ID
+                  optional: true
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1500m"
+              memory: "1Gi"
+
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8082
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 24
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: interview-service
+  namespace: piclouddoom
+spec:
+  selector:
+    app: interview-service
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082

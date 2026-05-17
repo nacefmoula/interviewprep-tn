@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: piclouddoom
+data:
+  # Shared internal service endpoints
+  KEYCLOAK_ISSUER_URI: "https://auth.interviewprep-tn.me/realms/myapp-realm"
+  KEYCLOAK_JWK_SET_URI: "http://keycloak:8080/realms/myapp-realm/protocol/openid-connect/certs"
+  KEYCLOAK_SERVER_URL: "http://keycloak:8080"
+  KEYCLOAK_REALM: "myapp-realm"
+
+  SPRING_REDIS_HOST: "redis"
+  SPRING_REDIS_PORT: "6379"
+
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+
+  USER_SERVICE_BASE_URL: "http://user-service:8081"
+
+  # AI service endpoints inside the future cluster/hybrid architecture
+  APP_OLLAMA_BASE_URL: "https://ollama.yellowocean-356174e3.francecentral.azurecontainerapps.io"
+  APP_OLLAMA_MODEL: "llama3.2:3b"
+  APP_OLLAMA_TIMEOUT_SECONDS: "300"
+
+  KOKORO_URL: "https://kokoro.yellowocean-356174e3.francecentral.azurecontainerapps.io"
+  APP_TTS_KOKORO_BASE_URL: "https://kokoro.yellowocean-356174e3.francecentral.azurecontainerapps.io"
+  WHISPER_BASE_URL: "https://whisper.yellowocean-356174e3.francecentral.azurecontainerapps.io"
+  STT_PROVIDER: "whisper"
+
+  AI_REPORT_URL: "http://ai-report-service:8680"
+  AI_TRAINING_PATH_URL: "https://ai-training-path.yellowocean-356174e3.francecentral.azurecontainerapps.io"
+  AI_MODEL_URL: "https://ai-training-path.yellowocean-356174e3.francecentral.azurecontainerapps.io/predict-path"
+
+  GOOGLE_AI_BASE_URL: "https://generativelanguage.googleapis.com"
+  GOOGLE_AI_MODEL: "gemini-2.5-flash"
+  GOOGLE_AI_FALLBACK_MODELS: "gemini-flash-lite-latest"
+  GOOGLE_AI_TEMPERATURE: "0.4"
+  GOOGLE_AI_MAX_OUTPUT_TOKENS: "600"
+
+  GROQ_MODEL: "llama-3.1-8b-instant"
+
+  MAIL_HOST: "sandbox.smtp.mailtrap.io"
+  MAIL_PORT: "587"
+  APP_EMAIL_FROM: "no-reply@pi-clouddoom.local"
+
+  # Spring overrides needed especially for mentorship-service, because its YAML has localhost values
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "https://auth.interviewprep-tn.me/realms/myapp-realm"
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: "http://keycloak:8080/realms/myapp-realm/protocol/openid-connect/certs"
