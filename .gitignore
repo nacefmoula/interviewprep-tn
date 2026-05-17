@@ -1,0 +1,63 @@
+# Java / Maven
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+target/
+**/target/
+
+# Crash logs
+hs_err_pid*
+replay_pid*
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+*.env
+!.env.example
+
+# IDE / Editor
+.idea/
+.vscode/
+*.iml
+*.ctxt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Frontend
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.angular/
+**/.angular/
+
+# Coverage / temp
+coverage/
+
+# Postman (environments often include local credentials/tokens)
+*.postman_environment.json
+.mtj.tmp/
+
+# Python / ML
+venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pkl
+training_data.csv
+out-tsc/
+**/out-tsc/
+.vercel
+
+# Claude Code session state
+.claude/
+infra/.env
+infra/.env
