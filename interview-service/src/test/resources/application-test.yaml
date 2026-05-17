@@ -1,0 +1,17 @@
+# Test profile — hermetic. Datasource & Kafka are injected by Testcontainers
+# @ServiceConnection (see AbstractIntegrationTest).
+spring:
+  # jwk-set-uri only (no issuer-uri) so the OAuth2 resource server skips
+  # OIDC discovery at startup — that offline network call broke contextLoads.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri:
+          jwk-set-uri: http://localhost:0/jwks
+  flyway:
+    enabled: true
+
+# GroqProperties has an @PostConstruct that hard-fails when blank.
+groq:
+  api-key: test-key

@@ -1,0 +1,14 @@
+# Test profile — hermetic. Datasource & Redis injected by Testcontainers
+# @ServiceConnection (see AbstractIntegrationTest).
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri:
+          jwk-set-uri: http://localhost:0/jwks
+  flyway:
+    enabled: true
+  ai:
+    openai:
+      api-key: test-key

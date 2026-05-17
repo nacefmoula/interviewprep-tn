@@ -1,0 +1,2 @@
+ALTER TABLE responses
+ADD COLUMN IF NOT EXISTS ai_feedback TEXT;

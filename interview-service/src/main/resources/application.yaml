@@ -1,0 +1,86 @@
+server:
+  port: ${SERVER_PORT:8082}
+
+spring:
+  application:
+    name: interview-service
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/myapp-realm}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8080/realms/myapp-realm/protocol/openid-connect/certs}
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/interviewdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:0000}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: public
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    out-of-order: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  Grok:
+    api-key: ${GROQ_API_KEY:}
+    model: ${GROQ_MODEL:llama-3.3-70b-versatile}
+    base-url: ${GROQ_BASE_URL:https://api.groq.com}
+
+app:
+  live:
+    max-questions-default: 6
+  vosk:
+    sample-rate: 16000
+    # Paths to each language model. Leave blank (or omit the env var) to disable
+    # a language — the service will start as long as at least one model is configured.
+    model-path-en: ${VOSK_MODEL_PATH_EN:/home/hadil/vosk/vosk-model-en-us-0.22-lgraph}
+    model-path-fr: ${VOSK_MODEL_PATH_FR:/home/hadil/vosk/vosk-model-small-fr-0.22}
+    model-path-ar-tn: ${VOSK_MODEL_PATH_AR_TN:/home/hadil/vosk/vosk-model-small-ar-tn-0.1-linto}
+  tts:
+    kokoro-base-url: "http://127.0.0.1:8880"
+    piper-base-url: ""
+  stt:
+    provider: ${STT_PROVIDER:whisper}
+
+    whisper:
+      base-url: ${WHISPER_BASE_URL:http://127.0.0.1:8000}
+      # Any faster-whisper-compatible Hugging Face model ID.
+      # small=460 MB, base=140 MB, medium=1.5 GB.  small is the sweet spot.
+      model: ${WHISPER_MODEL:Systran/faster-whisper-small}
+  did:
+    enabled: false
+  simli:
+    enabled: true
+    api-url: https://api.simli.ai
+    api-key: ${SIMLI_API_KEY:}
+    face-id: ${SIMLI_FACE_ID:cace3ef7-a4c4-425d-a8cf-a5358eb0c427}
+    tts-provider: ElevenLabs
+    tts-voice-id: ${SIMLI_TTS_VOICE_ID:21m00Tcm4TlvDq8ikWAM}
+logging:
+  level:
+    org.springframework.security: INFO
+    com.microservice.interviewservice.client: DEBUG
+    com.microservice.interviewservice.service.impl: DEBUG

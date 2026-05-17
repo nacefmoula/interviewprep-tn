@@ -1,0 +1,22 @@
+# Test profile — hermetic. Datasource/Redis/Kafka are injected by
+# Testcontainers @ServiceConnection (see AbstractIntegrationTest), so they
+# are intentionally NOT configured here.
+spring:
+  # Only jwk-set-uri (no issuer-uri) so the OAuth2 resource server does NOT
+  # perform OIDC discovery at startup — that network call is what made the
+  # context fail offline. The decoder is built lazily; no token is validated
+  # during contextLoads, so the dummy URL is never dereferenced.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri:
+          jwk-set-uri: http://localhost:0/jwks
+  flyway:
+    enabled: true
+
+# Dummy values so any bean that reads a key at startup constructs cleanly.
+groq:
+  api-key: test-key
+googleai:
+  api-key: test-key

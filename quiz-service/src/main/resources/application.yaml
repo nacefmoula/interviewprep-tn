@@ -1,0 +1,77 @@
+server:
+  # 8085 = quiz-service's documented port (infra/README.md, docker-compose).
+  # The previous 8082 default collided with interview-service (Q2).
+  port: ${SERVER_PORT:8085}
+
+#gemini:
+# api-key:
+# model: gemini-1.5-flash-latest
+groq:
+  api-key: ${GROQ_API_KEY}
+  model: llama-3.1-8b-instant
+
+spring:
+  application:
+    name: quiz-service
+
+  # Supprimer ou commenter les anciennes propriétés openai:
+  # openai:
+  #   api-key: ...
+  webflux:
+    codec:
+      max-in-memory-size: 100MB
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Attention : vérifie si ton Keycloak est sur 8090 (comme ton collègue) ou 8180 (ton ancien code)
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/myapp-realm}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8080/realms/myapp-realm/protocol/openid-connect/certs}
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/quizdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:0000} # Aligné sur son mot de passequiz_results
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # Flyway owns the schema (V1 + V2); Hibernate only validates
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: false
+
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD:0000}
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+quiz:
+  passing-score: 60
+
+services:
+  user-service:
+    base-url: ${USER_SERVICE_BASE_URL:http://localhost:8081}
+
+ai:
+  report:
+    url: http://localhost:8680
+  kokoro:
+    url: ${KOKORO_URL:http://kokoro:8880}

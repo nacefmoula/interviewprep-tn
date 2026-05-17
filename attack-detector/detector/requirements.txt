@@ -1,0 +1,4 @@
+prometheus-client==0.21.1
+numpy==2.2.1
+scikit-learn==1.6.0
+joblib==1.4.2

@@ -1,0 +1,16 @@
+# Test profile — hermetic. Datasource/Kafka/Redis injected by Testcontainers
+# @ServiceConnection (see AbstractIntegrationTest).
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri:
+          jwk-set-uri: http://localhost:0/jwks
+  flyway:
+    enabled: true
+
+# application.yaml uses ${GROQ_API_KEY} with NO default, so an unset env
+# would fail placeholder resolution at startup. Provide a dummy here.
+groq:
+  api-key: test-key

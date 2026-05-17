@@ -1,0 +1,103 @@
+server:
+    port: ${SERVER_PORT:8081}
+
+spring:
+    application:
+        name: user-service
+
+    security:
+        oauth2:
+            resourceserver:
+                jwt:
+                    issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/myapp-realm}
+                    jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8080/realms/myapp-realm/protocol/openid-connect/certs}
+
+    datasource:
+        url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/userdb}
+        username: ${SPRING_DATASOURCE_USERNAME:postgres}
+        password: ${SPRING_DATASOURCE_PASSWORD:0000}
+        driver-class-name: org.postgresql.Driver
+
+    jpa:
+        hibernate:
+            ddl-auto: none
+        show-sql: true
+        open-in-view: false
+        properties:
+            hibernate:
+                format_sql: true
+
+    flyway:
+        enabled: ${SPRING_FLYWAY_ENABLED:true}
+        locations: classpath:db/migration
+        baseline-on-migrate: false
+        clean-disabled: true
+        validate-on-migrate: true
+
+    data:
+        redis:
+            host: ${SPRING_REDIS_HOST:localhost}
+            port: ${SPRING_REDIS_PORT:6379}
+            password: ${SPRING_REDIS_PASSWORD:0000}
+    servlet:
+        multipart:
+            max-file-size: 6MB
+            max-request-size: 6MB
+    kafka:
+        bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+        producer:
+            key-serializer: org.apache.kafka.common.serialization.StringSerializer
+            value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+            properties:
+                spring.json.add.type.headers: false
+        consumer:
+            group-id: user-service-group
+            auto-offset-reset: earliest
+            key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+            value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+            properties:
+                spring.json.trusted.packages: "com.microservice.userservice.messaging.event"
+keycloak:
+    server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8080}
+    realm: ${KEYCLOAK_REALM:myapp-realm}
+    client-id: ${KEYCLOAK_CLIENT_ID:user-service}
+    client-secret: ${KEYCLOAK_CLIENT_SECRET:user-service-secret-change-in-prod}
+
+management:
+    endpoints:
+        web:
+            exposure:
+                include: health,info
+    endpoint:
+        health:
+            show-details: always
+logging:
+    level:
+        org.springframework.security: INFO
+
+app:
+    uploads-dir: ${APP_UPLOADS_DIR:uploads}
+
+    # ── Legacy local-Ollama config — kept for backward compatibility / rollback.
+    # New code path (CvAiParsingService) uses Groq below. Safe to delete after
+    # Groq is verified in prod.
+    ollama:
+        base-url: ${APP_OLLAMA_BASE_URL:http://127.0.0.1:11434}
+        model: ${APP_OLLAMA_MODEL:llama3.2:3b}
+        timeout-seconds: ${APP_OLLAMA_TIMEOUT_SECONDS:120}
+
+groq:
+    api-key: ${GROQ_API_KEY:}
+    base-url: ${GROQ_BASE_URL:https://api.groq.com}
+    model: ${GROQ_MODEL:llama-3.3-70b-versatile}
+    timeout-seconds: ${GROQ_TIMEOUT_SECONDS:60}
+    max-tokens: ${GROQ_MAX_TOKENS:1024}
+    temperature: ${GROQ_TEMPERATURE:0.1}
+
+googleai:
+    base-url: ${GOOGLE_AI_BASE_URL:https://generativelanguage.googleapis.com}
+    api-key: ${GOOGLE_AI_API_KEY:}
+    model: ${GOOGLE_AI_MODEL:gemini-2.5-flash}
+    fallback-models: ${GOOGLE_AI_FALLBACK_MODELS:gemini-flash-lite-latest}
+    temperature: ${GOOGLE_AI_TEMPERATURE:0.4}
+    max-output-tokens: ${GOOGLE_AI_MAX_OUTPUT_TOKENS:600}
