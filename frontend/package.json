@@ -30,7 +30,7 @@
     "@ng-icons/core": "^33.2.0",
     "@ng-icons/heroicons": "^33.2.0",
     "keycloak-angular": "^21.0.0",
-    "keycloak-js": "^26.2.3",
+    "keycloak-js": "^26.2.4",
     "rxjs": "~7.8.0",
     "simli-client": "^3.0.1",
     "sweetalert2": "^11.26.24",
