@@ -1,0 +1,195 @@
+name: Deploy — Azure Container Apps
+
+# ─────────────────────────────────────────────────────────────────────────
+# NOTE — Auto-trigger disabled (2026-05-11)
+#
+# This workflow needs AZURE_CREDENTIALS, but the esprit.tn Entra ID tenant
+# admin must first grant the "Application Developer" role to create the
+# service principal (`az ad sp create-for-rbac` fails with "Insufficient
+# privileges" today). Until then:
+#
+#   - workflow_dispatch only (manual) — won't auto-fire and fail after every
+#     image build
+#   - scripts/deploy-aca.sh is the manual fallback you can run from a laptop
+#     with `az login` as a user with Contributor on rg-piclouddoom
+#
+# Once AZURE_CREDENTIALS is set, restore the workflow_run block below:
+#
+#   workflow_run:
+#     workflows: ["Build & Push images"]
+#     types: [completed]
+#     branches:
+#       - main
+#       - deployment/hybrid-openstack-azure-vercel
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA (full or 7-char). Blank = HEAD of ref."
+        type: string
+        required: false
+      service:
+        description: "Deploy only one AI service (blank = all)"
+        type: choice
+        required: false
+        default: ""
+        options:
+          - ""
+          - ai-training-path
+          - kokoro
+          - ollama
+
+concurrency:
+  group: deploy-aca-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write          # reserved for future federated-credential migration
+
+jobs:
+  gate:
+    name: precheck
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
+    outputs:
+      sha:       ${{ steps.resolve.outputs.sha }}
+      sha_short: ${{ steps.resolve.outputs.sha_short }}
+    steps:
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            sha="${{ github.event.workflow_run.head_sha }}"
+          elif [ -n "${{ inputs.sha }}" ]; then
+            sha="${{ inputs.sha }}"
+          else
+            sha="${{ github.sha }}"
+          fi
+          short="${sha:0:7}"
+          echo "sha=$sha"          >> "$GITHUB_OUTPUT"
+          echo "sha_short=$short"  >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: aca-${{ matrix.app }}
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # source folder            ACA app name        image
+          - { source: ai-training-path, app: ai-training-path, image: docker.io/azizbna/pi-clouddoom-ai-training-path }
+          - { source: kokoro,           app: kokoro,           image: docker.io/azizbna/pi-clouddoom-kokoro           }
+          - { source: ollama-deploy,    app: ollama,           image: docker.io/azizbna/pi-clouddoom-ollama           }
+    steps:
+      - name: Skip if single-service dispatch and not matched
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.service != '' && inputs.service != matrix.app }}
+        run: |
+          echo "Skipped: dispatch targeted '${{ inputs.service }}', this job is '${{ matrix.app }}'."
+          exit 0
+
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          IMAGE_REF="${{ matrix.image }}:sha-${{ needs.gate.outputs.sha_short }}"
+          echo "ref=$IMAGE_REF" >> "$GITHUB_OUTPUT"
+          # ACA revision suffixes: 3–32 chars, lowercase alphanumerics + hyphen
+          echo "rev=sha-${{ needs.gate.outputs.sha_short }}" >> "$GITHUB_OUTPUT"
+
+      - name: Pre-update state
+        run: |
+          az containerapp show \
+            --name "${{ matrix.app }}" \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --query "{name:name, image:properties.template.containers[0].image, latestRev:properties.latestRevisionName}" \
+            -o table
+
+      - name: Update Container App image
+        run: |
+          az containerapp update \
+            --name "${{ matrix.app }}" \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ steps.tag.outputs.ref }}" \
+            --revision-suffix "${{ steps.tag.outputs.rev }}" \
+            --output none
+          echo "Triggered revision: ${{ matrix.app }}--${{ steps.tag.outputs.rev }}"
+
+      - name: Wait for new revision to be healthy
+        run: |
+          NEW_REV="${{ matrix.app }}--${{ steps.tag.outputs.rev }}"
+          for i in $(seq 1 30); do
+            STATE=$(az containerapp revision show \
+              --name "${{ matrix.app }}" \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --revision "$NEW_REV" \
+              --query "properties.runningState" -o tsv 2>/dev/null || echo "Unknown")
+            echo "Attempt $i — revision $NEW_REV state: $STATE"
+            case "$STATE" in
+              Running|RunningAtMaxScale) echo "Revision is healthy."; exit 0 ;;
+              Failed|Degraded)           echo "::error::Revision unhealthy: $STATE"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Revision $NEW_REV did not reach Running within 5 minutes."
+          exit 1
+
+      - name: Auto-rollback on failure
+        if: failure()
+        run: |
+          echo "::warning::Rolling back ${{ matrix.app }} traffic to the previous revision."
+          PREV_REV=$(az containerapp revision list \
+            --name "${{ matrix.app }}" \
+            --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            --query "sort_by([?properties.runningState=='Running' && name!='${{ matrix.app }}--${{ steps.tag.outputs.rev }}'], &properties.createdTime)[-1].name" \
+            -o tsv 2>/dev/null || true)
+          if [ -n "$PREV_REV" ]; then
+            echo "Switching traffic to $PREV_REV"
+            az containerapp ingress traffic set \
+              --name "${{ matrix.app }}" \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --revision-weight "$PREV_REV=100" \
+              --output none
+          else
+            echo "::warning::No previous healthy revision found — manual intervention needed."
+          fi
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "## ${{ matrix.app }}"
+            echo "- Image: \`${{ steps.tag.outputs.ref }}\`"
+            echo "- New revision: \`${{ matrix.app }}--${{ steps.tag.outputs.rev }}\`"
+            echo ""
+            az containerapp show \
+              --name "${{ matrix.app }}" \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --query "{latestRev:properties.latestRevisionName, fqdn:properties.configuration.ingress.fqdn}" \
+              -o table 2>&1 || echo "(post-deploy show failed)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-summary:
+    name: deploy-summary
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - run: |
+          result='${{ needs.deploy.result }}'
+          echo "Matrix result: $result"
+          [ "$result" = "failure" ] && exit 1 || echo "All ACA deploys succeeded."

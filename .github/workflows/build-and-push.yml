@@ -1,0 +1,153 @@
+name: Build & Push images
+
+on:
+  # Container image build/push requires DockerHub credentials
+  # (DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repo secrets). Manual-only here so
+  # the public repo's CI stays green; add the secrets to enable automation.
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Build a single service (leave blank for all)"
+        type: string
+        required: false
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false       # do not cancel: every commit gets its image
+
+permissions:
+  contents: read
+  id-token: write                 # required for cosign keyless OIDC signing
+  packages: read
+
+jobs:
+  build:
+    name: build-${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { service: user-service,       image: azizbna/pi-clouddoom-user-service       }
+          - { service: interview-service,  image: azizbna/pi-clouddoom-interview-service  }
+          - { service: training-service,   image: azizbna/pi-clouddoom-training-service   }
+          - { service: mentorship-service, image: azizbna/pi-clouddoom-mentorship-service }
+          - { service: quiz-service,       image: azizbna/pi-clouddoom-quiz-service       }
+          - { service: community-service,  image: azizbna/pi-clouddoom-community-service  }
+          - { service: resource-service,   image: azizbna/pi-clouddoom-resource-service   }
+          - { service: ai-training-path,   image: azizbna/pi-clouddoom-ai-training-path   }
+          - { service: kokoro,             image: azizbna/pi-clouddoom-kokoro             }
+          - { service: ollama-deploy,      image: azizbna/pi-clouddoom-ollama             }
+    steps:
+      - name: Skip if single-service dispatch and not matched
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.service != '' && inputs.service != matrix.service }}
+        run: |
+          echo "Skipped: workflow_dispatch targeted '${{ inputs.service }}', this job is '${{ matrix.service }}'."
+          exit 0
+
+      - uses: actions/checkout@v4
+
+      # ─── Buildx for layer cache + multi-platform readiness ─────────────
+      - uses: docker/setup-buildx-action@v3
+
+      # ─── DockerHub login ───────────────────────────────────────────────
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ─── Tag plan ──────────────────────────────────────────────────────
+      # - sha-<short>  : immutable, always
+      # - <branch>     : moving pointer per branch
+      # - latest       : only on default branch (main)
+      # - <semver>     : on v* tags
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ matrix.image }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=${{ matrix.service }}
+
+      # ─── Build & push ──────────────────────────────────────────────────
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to:   type=gha,scope=${{ matrix.service }},mode=max
+
+      # ─── Trivy vulnerability scan (REPORT-ONLY for day-1) ──────────────
+      # Findings still upload to GH code-scanning, but don't block the build.
+      # Once base-image CVEs are triaged, flip exit-code back to "1" to enforce.
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: docker.io/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          severity: CRITICAL,HIGH
+          exit-code: "0"          # report-only — see comment above
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+        continue-on-error: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.service }}
+          path: trivy-${{ matrix.service }}.sarif
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # ─── Cosign keyless signing (OIDC, no key to manage) ───────────────
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        run: |
+          cosign sign --yes \
+            "docker.io/${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+
+      # ─── Summary in the job log ────────────────────────────────────────
+      - name: Build summary
+        run: |
+          {
+            echo "## ${{ matrix.service }}"
+            echo ""
+            echo "**Image:** \`docker.io/${{ matrix.image }}\`"
+            echo "**Digest:** \`${{ steps.build.outputs.digest }}\`"
+            echo ""
+            echo "**Tags pushed:**"
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  summary:
+    name: build-summary
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    steps:
+      - name: Aggregate
+        run: |
+          result='${{ needs.build.result }}'
+          echo "Matrix result: $result"
+          if [ "$result" = "failure" ]; then
+            echo "::error::One or more image builds failed."
+            exit 1
+          fi
+          echo "All image builds succeeded."

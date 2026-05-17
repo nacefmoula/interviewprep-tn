@@ -1,0 +1,111 @@
+version: 2
+updates:
+  # ─── Maven (one entry per Spring service) ───────────────────────────────
+  - package-ecosystem: "maven"
+    directory: "/user-service"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+      test-libs:
+        patterns: ["org.junit*", "org.mockito*", "org.assertj*"]
+    labels: ["deps", "java"]
+
+  - package-ecosystem: "maven"
+    directory: "/interview-service"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+    labels: ["deps", "java"]
+
+  - package-ecosystem: "maven"
+    directory: "/training-service"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+    labels: ["deps", "java"]
+
+  - package-ecosystem: "maven"
+    directory: "/mentorship-service"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+    labels: ["deps", "java"]
+
+  - package-ecosystem: "maven"
+    directory: "/quiz-service"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+    labels: ["deps", "java"]
+
+  - package-ecosystem: "maven"
+    directory: "/community-service"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+    labels: ["deps", "java"]
+
+  - package-ecosystem: "maven"
+    directory: "/resource-service"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.spring*"]
+    labels: ["deps", "java"]
+
+  # ─── Frontend (Angular) ─────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    groups:
+      angular:
+        patterns: ["@angular/*", "@angular-devkit/*"]
+      types:
+        patterns: ["@types/*"]
+    labels: ["deps", "frontend"]
+
+  # ─── Python (ai-training-path) ──────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/ai-training-path"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 3
+    labels: ["deps", "python"]
+
+  # ─── Docker base images ─────────────────────────────────────────────────
+  - package-ecosystem: "docker"
+    directories:
+      - "/user-service"
+      - "/interview-service"
+      - "/training-service"
+      - "/mentorship-service"
+      - "/quiz-service"
+      - "/community-service"
+      - "/resource-service"
+      - "/ai-training-path"
+      - "/kokoro"
+      - "/ollama-deploy"
+      - "/frontend"
+    schedule: { interval: "weekly", day: "tuesday" }
+    open-pull-requests-limit: 3
+    labels: ["deps", "docker"]
+
+  # ─── GitHub Actions themselves ──────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule: { interval: "weekly", day: "monday" }
+    open-pull-requests-limit: 5
+    labels: ["deps", "ci"]

@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "deployment/**"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ─── Detect which services changed in this push / PR ────────────────────
+  changes:
+    name: detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      user:       ${{ steps.f.outputs.user }}
+      interview:  ${{ steps.f.outputs.interview }}
+      training:   ${{ steps.f.outputs.training }}
+      mentorship: ${{ steps.f.outputs.mentorship }}
+      quiz:       ${{ steps.f.outputs.quiz }}
+      community:  ${{ steps.f.outputs.community }}
+      resource:   ${{ steps.f.outputs.resource }}
+      ai:         ${{ steps.f.outputs.ai }}
+      frontend:   ${{ steps.f.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: f
+        uses: dorny/paths-filter@v3
+        with:
+          # A change to the CI workflows themselves must re-trigger every
+          # service build, otherwise CI-config fixes cannot be validated.
+          filters: |
+            user:       ['user-service/**', '.github/workflows/**']
+            interview:  ['interview-service/**', '.github/workflows/**']
+            training:   ['training-service/**', '.github/workflows/**']
+            mentorship: ['mentorship-service/**', '.github/workflows/**']
+            quiz:       ['quiz-service/**', '.github/workflows/**']
+            community:  ['community-service/**', '.github/workflows/**']
+            resource:   ['resource-service/**', '.github/workflows/**']
+            ai:         ['ai-training-path/**', '.github/workflows/**']
+            frontend:   ['frontend/**', '.github/workflows/**']
+
+  # ─── Spring services ────────────────────────────────────────────────────
+  user:
+    needs: changes
+    if: needs.changes.outputs.user == 'true'
+    uses: ./.github/workflows/ci-spring-service.yml
+    with: { service: user-service, java: "21" }
+
+  interview:
+    needs: changes
+    if: needs.changes.outputs.interview == 'true'
+    uses: ./.github/workflows/ci-spring-service.yml
+    with: { service: interview-service, java: "21" }
+
+  training:
+    needs: changes
+    if: needs.changes.outputs.training == 'true'
+    uses: ./.github/workflows/ci-spring-service.yml
+    with: { service: training-service, java: "21" }
+
+  mentorship:
+    needs: changes
+    if: needs.changes.outputs.mentorship == 'true'
+    uses: ./.github/workflows/ci-spring-service.yml
+    with: { service: mentorship-service, java: "21" }
+
+  quiz:
+    needs: changes
+    if: needs.changes.outputs.quiz == 'true'
+    uses: ./.github/workflows/ci-spring-service.yml
+    with: { service: quiz-service, java: "21" }
+
+  community:
+    needs: changes
+    if: needs.changes.outputs.community == 'true'
+    uses: ./.github/workflows/ci-spring-service.yml
+    with: { service: community-service, java: "21" }
+
+  resource:
+    needs: changes
+    if: needs.changes.outputs.resource == 'true'
+    uses: ./.github/workflows/ci-spring-service.yml
+    with: { service: resource-service, java: "21" }
+
+  # ─── Python (FastAPI) ───────────────────────────────────────────────────
+  ai:
+    needs: changes
+    if: needs.changes.outputs.ai == 'true'
+    uses: ./.github/workflows/ci-python-service.yml
+    with: { service: ai-training-path, python: "3.12" }
+
+  # ─── Frontend (Angular) ─────────────────────────────────────────────────
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/ci-frontend.yml
+    with: { node: "20" }
+
+  # ─── Aggregate gate for branch protection ───────────────────────────────
+  ci-summary:
+    name: ci-summary
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - user
+      - interview
+      - training
+      - mentorship
+      - quiz
+      - community
+      - resource
+      - ai
+      - frontend
+    if: always()
+    steps:
+      - name: Fail if any required job failed
+        run: |
+          results='${{ toJson(needs) }}'
+          echo "$results"
+          echo "$results" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          bad = [k for k, v in data.items() if v.get('result') == 'failure']
+          if bad:
+              print(f'::error::Failed jobs: {bad}')
+              sys.exit(1)
+          print('All required CI jobs passed (or were skipped due to no changes).')
+          "

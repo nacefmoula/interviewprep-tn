@@ -1,0 +1,47 @@
+name: CI — Spring service (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: "Folder name of the Spring service (e.g. user-service)"
+        type: string
+        required: true
+      java:
+        description: "Java major version"
+        type: string
+        required: false
+        default: "21"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build-${{ inputs.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.service }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ inputs.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java }}
+          cache: maven
+
+      - name: Maven verify (skip integration tests)
+        run: mvn -B -ntp -DskipITs verify
+
+      - name: Upload Surefire reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-${{ inputs.service }}
+          path: ${{ inputs.service }}/target/surefire-reports
+          if-no-files-found: ignore
+          retention-days: 7
