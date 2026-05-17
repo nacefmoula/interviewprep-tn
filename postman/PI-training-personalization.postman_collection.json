@@ -1,0 +1,356 @@
+{
+  "info": {
+    "_postman_id": "c6d0c7d6-5a7b-4ab3-8a89-9a5dfab1b7c1",
+    "name": "PI - Training Personalization",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "KEYCLOAK_BASE_URL", "value": "http://localhost:8080" },
+    { "key": "REALM", "value": "myapp-realm" },
+    { "key": "FRONT_CLIENT_ID", "value": "angular-client" },
+    { "key": "USER_USERNAME", "value": "user@test.com" },
+    { "key": "USER_PASSWORD", "value": "user123" },
+    { "key": "ADMIN_CLIENT_ID", "value": "admin-cli" },
+    { "key": "ADMIN_USERNAME", "value": "admin@test.com" },
+    { "key": "ADMIN_PASSWORD", "value": "admin123" },
+    { "key": "TRAINING_SERVICE_BASE_URL", "value": "http://localhost:8083" },
+
+    { "key": "user_token", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "user_id", "value": "" },
+    { "key": "training_path_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Get regular user token (sets user_token + user_id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('user_token', json.access_token);",
+                  "",
+                  "pm.test('access_token exists', function () {",
+                  "  pm.expect(json.access_token).to.exist;",
+                  "});",
+                  "",
+                  "function base64UrlDecode(str) {",
+                  "  str = str.replace(/-/g, '+').replace(/_/g, '/');",
+                  "  const pad = str.length % 4;",
+                  "  if (pad) str += '='.repeat(4 - pad);",
+                  "  return atob(str);",
+                  "}",
+                  "",
+                  "try {",
+                  "  const payload = JSON.parse(base64UrlDecode(json.access_token.split('.')[1]));",
+                  "  pm.environment.set('user_id', payload.sub);",
+                  "} catch (e) {",
+                  "  console.log('Could not parse JWT payload', e);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password", "type": "text" },
+                { "key": "client_id", "value": "{{FRONT_CLIENT_ID}}", "type": "text" },
+                { "key": "username", "value": "{{USER_USERNAME}}", "type": "text" },
+                { "key": "password", "value": "{{USER_PASSWORD}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{KEYCLOAK_BASE_URL}}/realms/{{REALM}}/protocol/openid-connect/token",
+              "host": ["{{KEYCLOAK_BASE_URL}}"],
+              "path": ["realms", "{{REALM}}", "protocol", "openid-connect", "token"]
+            }
+          }
+        },
+        {
+          "name": "Get admin token (sets admin_token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('admin_token', json.access_token);",
+                  "",
+                  "pm.test('access_token exists', function () {",
+                  "  pm.expect(json.access_token).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password", "type": "text" },
+                { "key": "client_id", "value": "{{ADMIN_CLIENT_ID}}", "type": "text" },
+                { "key": "username", "value": "{{ADMIN_USERNAME}}", "type": "text" },
+                { "key": "password", "value": "{{ADMIN_PASSWORD}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{KEYCLOAK_BASE_URL}}/realms/{{REALM}}/protocol/openid-connect/token",
+              "host": ["{{KEYCLOAK_BASE_URL}}"],
+              "path": ["realms", "{{REALM}}", "protocol", "openid-connect", "token"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Training (User)",
+      "item": [
+        {
+          "name": "GET My Preferences",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const userId = pm.environment.get('user_id');",
+                  "",
+                  "pm.test('userId matches token sub', function () {",
+                  "  if (userId) pm.expect(json.userId).to.eql(userId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{user_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/training/preferences/me",
+              "host": ["{{TRAINING_SERVICE_BASE_URL}}"],
+              "path": ["api", "v1", "training", "preferences", "me"]
+            }
+          }
+        },
+        {
+          "name": "PUT My Preferences (TECHNICAL example)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('echoes preferences fields', function () {",
+                  "  pm.expect(json.goal).to.eql('TECHNICAL');",
+                  "  pm.expect(json.targetRole).to.eql('Backend');",
+                  "  pm.expect(json.seniority).to.eql('JUNIOR');",
+                  "  pm.expect(json.minutesPerDay).to.eql(45);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{user_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"goal\": \"TECHNICAL\",\n  \"targetRole\": \"Backend\",\n  \"seniority\": \"JUNIOR\",\n  \"minutesPerDay\": 45\n}"
+            },
+            "url": {
+              "raw": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/training/preferences/me",
+              "host": ["{{TRAINING_SERVICE_BASE_URL}}"],
+              "path": ["api", "v1", "training", "preferences", "me"]
+            }
+          }
+        },
+        {
+          "name": "POST Generate My Path (sets training_path_id)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json && json.id) pm.environment.set('training_path_id', json.id);",
+                  "",
+                  "pm.test('modules exist', function () {",
+                  "  pm.expect(json.modules).to.be.an('array');",
+                  "  pm.expect(json.modules.length).to.be.above(0);",
+                  "});",
+                  "",
+                  "pm.test('exactly one module is IN_PROGRESS', function () {",
+                  "  const inProgress = (json.modules || []).filter(m => m.status === 'IN_PROGRESS');",
+                  "  pm.expect(inProgress.length).to.eql(1);",
+                  "});",
+                  "",
+                  "pm.test('TECHNICAL goal unlocks INDUSTRY_SPECIFIC first', function () {",
+                  "  const inProgress = (json.modules || []).find(m => m.status === 'IN_PROGRESS');",
+                  "  if (inProgress) pm.expect(inProgress.category).to.eql('INDUSTRY_SPECIFIC');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{user_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/training/paths/generate",
+              "host": ["{{TRAINING_SERVICE_BASE_URL}}"],
+              "path": ["api", "v1", "training", "paths", "generate"]
+            }
+          }
+        },
+        {
+          "name": "GET My Path By user_id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "const userId = pm.environment.get('user_id');",
+                  "const pathId = pm.environment.get('training_path_id');",
+                  "",
+                  "pm.test('userId matches', function () {",
+                  "  if (userId) pm.expect(json.userId).to.eql(userId);",
+                  "});",
+                  "",
+                  "pm.test('path id matches last generated (if set)', function () {",
+                  "  if (pathId) pm.expect(String(json.id)).to.eql(String(pathId));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{user_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/training/paths/user/{{user_id}}",
+              "host": ["{{TRAINING_SERVICE_BASE_URL}}"],
+              "path": ["api", "v1", "training", "paths", "user", "{{user_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Training (Admin cleanup)",
+      "item": [
+        {
+          "name": "GET All Paths (sets training_path_id for current user_id if found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('response is array', function () {",
+                  "  pm.expect(json).to.be.an('array');",
+                  "});",
+                  "",
+                  "const userId = pm.environment.get('user_id');",
+                  "if (userId && Array.isArray(json)) {",
+                  "  const match = json.find(p => p.userId === userId);",
+                  "  if (match && match.id) pm.environment.set('training_path_id', match.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/paths",
+              "host": ["{{TRAINING_SERVICE_BASE_URL}}"],
+              "path": ["api", "v1", "admin", "training", "paths"]
+            }
+          }
+        },
+        {
+          "name": "DELETE Path By training_path_id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/paths/{{training_path_id}}",
+              "host": ["{{TRAINING_SERVICE_BASE_URL}}"],
+              "path": ["api", "v1", "admin", "training", "paths", "{{training_path_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

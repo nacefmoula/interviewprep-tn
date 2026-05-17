@@ -1,0 +1,315 @@
+{
+  "info": {
+    "_postman_id": "9a2e8683-5e40-4f5c-b988-5e5d8f924001",
+    "name": "Member4 Training CRUD Demo",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.environment.set('today', new Date().toISOString().slice(0, 10));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Get Admin Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "const j = pm.response.json();",
+              "pm.environment.set('admin_token', j.access_token);",
+              "pm.test('Token exists', function () { pm.expect(j.access_token).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "password", "type": "text" },
+            { "key": "client_id", "value": "{{CLIENT_ID}}", "type": "text" },
+            { "key": "username", "value": "{{ADMIN_USERNAME}}", "type": "text" },
+            { "key": "password", "value": "{{ADMIN_PASSWORD}}", "type": "text" }
+          ]
+        },
+        "url": "{{KEYCLOAK_BASE_URL}}/realms/{{REALM}}/protocol/openid-connect/token"
+      }
+    },
+    {
+      "name": "2. Get Current User (save user_id)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "const j = pm.response.json();",
+              "pm.environment.set('user_id', j.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "url": "{{USER_SERVICE_BASE_URL}}/api/users/me"
+      }
+    },
+    {
+      "name": "3. Create Badge",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+              "pm.environment.set('badge_id', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"M4 Demo Badge\",\n  \"description\": \"Demo badge\",\n  \"icon\": \"star\",\n  \"category\": \"MILESTONE\",\n  \"xpReward\": 25,\n  \"criteriaJson\": \"{}\",\n  \"isActive\": true\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/badges"
+      }
+    },
+    {
+      "name": "4. Get Badge By Id",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/badges/{{badge_id}}"
+      }
+    },
+    {
+      "name": "5. Update Badge",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"M4 Demo Badge Updated\",\n  \"description\": \"Updated\",\n  \"icon\": \"star\",\n  \"category\": \"MILESTONE\",\n  \"xpReward\": 30,\n  \"criteriaJson\": \"{}\",\n  \"isActive\": true\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/badges/{{badge_id}}"
+      }
+    },
+    {
+      "name": "6. Create Path",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+              "pm.environment.set('path_id', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"status\": \"ACTIVE\",\n  \"xpThreshold\": 150\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/paths"
+      }
+    },
+    {
+      "name": "7. Update Path",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"status\": \"PAUSED\",\n  \"xpThreshold\": 200\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/paths/{{path_id}}"
+      }
+    },
+    {
+      "name": "8. Create Module",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+              "pm.environment.set('module_id', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pathId\": {{path_id}},\n  \"category\": \"COMMUNICATION\",\n  \"title\": \"M4 Module\",\n  \"description\": \"Demo module\",\n  \"lessons\": 5,\n  \"completedLessons\": 0,\n  \"progress\": 0,\n  \"xpReward\": 40,\n  \"status\": \"LOCKED\"\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/modules"
+      }
+    },
+    {
+      "name": "9. Update Module",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pathId\": {{path_id}},\n  \"category\": \"COMMUNICATION\",\n  \"title\": \"M4 Module Updated\",\n  \"description\": \"Updated\",\n  \"lessons\": 5,\n  \"completedLessons\": 2,\n  \"progress\": 40,\n  \"xpReward\": 60,\n  \"status\": \"IN_PROGRESS\"\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/modules/{{module_id}}"
+      }
+    },
+    {
+      "name": "10. Create XP Tracker",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+              "pm.environment.set('tracker_id', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"totalXp\": 100,\n  \"currentLevel\": 2,\n  \"xpToNextLevel\": 120,\n  \"currentStreak\": 1,\n  \"longestStreak\": 1\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/xp-trackers"
+      }
+    },
+    {
+      "name": "11. Create Daily Activity",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+              "pm.environment.set('activity_id', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"activityDate\": \"{{today}}\",\n  \"xpEarned\": 20,\n  \"sessionCompleted\": true,\n  \"goalsCompleted\": 1,\n  \"behavioralCount\": 1,\n  \"libraryCount\": 0,\n  \"quizCount\": 0\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/activities"
+      }
+    },
+    {
+      "name": "12. Create User Badge",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+              "pm.environment.set('user_badge_id', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"badgeId\": {{badge_id}},\n  \"progress\": 10\n}"
+        },
+        "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/user-badges"
+      }
+    },
+    {
+      "name": "13. List All Entity Collections",
+      "item": [
+        { "name": "List badges", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/badges" } },
+        { "name": "List modules", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/modules" } },
+        { "name": "List paths", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/paths" } },
+        { "name": "List user badges", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/user-badges" } },
+        { "name": "List xp trackers", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/xp-trackers" } },
+        { "name": "List activities", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/activities" } }
+      ]
+    },
+    {
+      "name": "14. Cleanup Deletes (run bottom-up)",
+      "item": [
+        { "name": "Delete user badge", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/user-badges/{{user_badge_id}}" } },
+        { "name": "Delete module", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/modules/{{module_id}}" } },
+        { "name": "Delete activity", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/activities/{{activity_id}}" } },
+        { "name": "Delete xp tracker", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/xp-trackers/{{tracker_id}}" } },
+        { "name": "Delete path", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/paths/{{path_id}}" } },
+        { "name": "Delete badge", "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{TRAINING_SERVICE_BASE_URL}}/api/v1/admin/training/badges/{{badge_id}}" } }
+      ]
+    }
+  ]
+}

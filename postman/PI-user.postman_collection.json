@@ -1,0 +1,617 @@
+{
+  "info": {
+    "_postman_id": "dae83d5e-6c65-4f92-9cd5-48be2dc86c04",
+    "name": "PI-user",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "40273128"
+  },
+  "item": [
+    {
+      "name": "Realm discovery",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": []
+        },
+        "url": {
+          "raw": "{{KEYCLOAK_BASE_URL}}/realms/{{REALM}}/.well-known/openid-configuration",
+          "host": [
+            "{{KEYCLOAK_BASE_URL}}"
+          ],
+          "path": [
+            "realms",
+            "{{REALM}}",
+            ".well-known",
+            "openid-configuration"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "JWKS endpoint",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{KEYCLOAK_BASE_URL}}/realms/{{REALM}}/protocol/openid-connect/certs",
+          "host": [
+            "{{KEYCLOAK_BASE_URL}}"
+          ],
+          "path": [
+            "realms",
+            "{{REALM}}",
+            "protocol",
+            "openid-connect",
+            "certs"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Backend service token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status is 200\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "pm.environment.set(\"service_access_token\", json.access_token);",
+              "",
+              "pm.test(\"access_token exists\", function () {",
+              "  pm.expect(json.access_token).to.exist;",
+              "});"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials",
+              "type": "text",
+              "uuid": "878bf60c-0cf3-4b79-b640-4ff317d79373"
+            },
+            {
+              "key": "client_id",
+              "value": "{{SERVICE_CLIENT_ID}}",
+              "type": "text",
+              "uuid": "82f10111-37b6-44a1-af4c-a6df16cd6fef"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{SERVICE_CLIENT_SECRET}}",
+              "type": "text",
+              "uuid": "26645aa9-3601-418e-abe2-91fb8a382a21"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{KEYCLOAK_BASE_URL}}/realms/{{REALM}}/protocol/openid-connect/token",
+          "host": [
+            "{{KEYCLOAK_BASE_URL}}"
+          ],
+          "path": [
+            "realms",
+            "{{REALM}}",
+            "protocol",
+            "openid-connect",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "test user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password",
+              "type": "text",
+              "uuid": "c0e5ecc5-3ed5-46f6-b845-1ff22dcdca87"
+            },
+            {
+              "key": "client_id",
+              "value": "admin-cli",
+              "type": "text",
+              "uuid": "034ed429-7230-4827-bc92-a27c7773ef3d"
+            },
+            {
+              "key": "username",
+              "value": "admin@test.com",
+              "type": "text",
+              "uuid": "4d8c603c-3e4b-4a27-b1eb-0242ee940e31"
+            },
+            {
+              "key": "password",
+              "value": "admin123",
+              "type": "text",
+              "uuid": "a6110578-5dac-4a87-93de-efab389e2efa"
+            },
+            {
+              "key": "scope",
+              "value": "openid",
+              "type": "text",
+              "uuid": "3302217a-2202-4b95-98e5-37b446249c0b"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{KEYCLOAK_BASE_URL}}/realms/{{REALM}}/protocol/openid-connect/token",
+          "host": [
+            "{{KEYCLOAK_BASE_URL}}"
+          ],
+          "path": [
+            "realms",
+            "{{REALM}}",
+            "protocol",
+            "openid-connect",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get admin token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const response = pm.response.json();",
+              "pm.environment.set(\"admin_token\", response.access_token);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password",
+              "type": "text",
+              "uuid": "e30451a3-17dc-4065-8293-19b5f2828798"
+            },
+            {
+              "key": "client_id",
+              "value": "angular-client",
+              "type": "text",
+              "uuid": "86656568-90f1-4a50-8253-76c463e2d563"
+            },
+            {
+              "key": "username",
+              "value": "admin@test.com",
+              "type": "text",
+              "uuid": "3fc90926-3801-4c5a-b3d6-eab4c4f9f77c"
+            },
+            {
+              "key": "password",
+              "value": "admin123",
+              "type": "text",
+              "uuid": "44718f6a-64d3-4274-9a5f-386eafa665a7"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{KEYCLOAK_BASE_URL}}realms/{{REALM}}/protocol/openid-connect/token",
+          "host": [
+            "{{KEYCLOAK_BASE_URL}}realms"
+          ],
+          "path": [
+            "{{REALM}}",
+            "protocol",
+            "openid-connect",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get regular user token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const response = pm.response.json();",
+              "pm.environment.set(\"user_token\", response.access_token);"
+            ],
+            "type": "text/javascript",
+            "packages": {},
+            "requests": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password",
+              "type": "text",
+              "uuid": "440df03d-d219-4763-be31-7f7209282ffe"
+            },
+            {
+              "key": "client_id",
+              "value": "angular-client",
+              "type": "text",
+              "uuid": "9c91d44b-eb39-4b72-9ae5-4031529d2596"
+            },
+            {
+              "key": "username",
+              "value": "user@test.com",
+              "type": "text",
+              "uuid": "3b5b8bcf-8dbf-4f32-b4e1-053477df74a6"
+            },
+            {
+              "key": "password",
+              "value": "user123",
+              "type": "text",
+              "uuid": "40a9b813-8f3c-4d13-9cef-e6400b25d924"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{KEYCLOAK_BASE_URL}}realms/{{REALM}}/protocol/openid-connect/token",
+          "host": [
+            "{{KEYCLOAK_BASE_URL}}realms"
+          ],
+          "path": [
+            "{{REALM}}",
+            "protocol",
+            "openid-connect",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Public endpoint (no token)",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "Get current user with admin token",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/me",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Admin endpoint with admin token",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "user endpoint with user token",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{user_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/user/test",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "user",
+            "test"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Register a new user",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"email\": \"testuser@interviewprep.tn\",\n    \"firstName\": \"Test\",\n    \"lastName\": \"User\",\n    \"password\": \"password123\",\n    \"phoneNumber\": \"+21612345678\",\n    \"city\": \"Tunis\",\n    \"preferredIndustry\": \"TECHNOLOGY\",\n    \"preferredLanguage\": \"fr\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/users/register",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get current user",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/users/me",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get all users (admin only)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/users",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get all users with regular user token (must fail)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{user_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/users",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "users"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update current user",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"bio\": \"Software engineer preparing for interviews\",\n    \"city\": \"Sfax\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/users/me",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Search users",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/users/search?query=test",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "query",
+              "value": "test"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "delete user by id",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{USER_SERVICE_BASE_URL}}/api/users/b19747ae-371e-41dd-85aa-a63c854aaa98",
+          "host": [
+            "{{USER_SERVICE_BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "b19747ae-371e-41dd-85aa-a63c854aaa98"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
