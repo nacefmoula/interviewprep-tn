@@ -26,8 +26,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # build-mode: none — source-only analysis. This is a 7-pom
+          # monorepo with no root aggregator, so CodeQL autobuild can't
+          # build Java; `none` scans the source directly (full security
+          # query coverage, no build wrangling).
           - language: java-kotlin
-            build-mode: autobuild
+            build-mode: none
           - language: javascript-typescript
             build-mode: none
           - language: python
@@ -37,27 +41,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        if: matrix.language == 'java-kotlin'
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended,security-and-quality
-
-      # Build a representative Spring service so CodeQL can analyse Java.
-      # Pick user-service — it has tests + is on Java 21.
-      - name: Autobuild Java
-        if: matrix.language == 'java-kotlin'
-        working-directory: user-service
-        run: mvn -B -ntp -DskipTests package
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
