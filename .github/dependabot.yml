@@ -1,88 +1,122 @@
 version: 2
+
+# Hygiene policy:
+#   - Patch/minor security & maintenance bumps only — major bumps are
+#     deliberately ignored. Majors (Spring Boot 4, Java 25, Angular X, TS 6,
+#     Testcontainers 2, …) carry breaking changes that need a deliberate,
+#     tested migration, not an unattended PR. They're reviewed manually.
+#   - Conservative open-PR limits so the queue stays reviewable.
 updates:
   # ─── Maven (one entry per Spring service) ───────────────────────────────
   - package-ecosystem: "maven"
     directory: "/user-service"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       spring:
         patterns: ["org.springframework*", "io.spring*"]
       test-libs:
         patterns: ["org.junit*", "org.mockito*", "org.assertj*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "java"]
 
   - package-ecosystem: "maven"
     directory: "/interview-service"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       spring:
         patterns: ["org.springframework*", "io.spring*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "java"]
 
   - package-ecosystem: "maven"
     directory: "/training-service"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       spring:
         patterns: ["org.springframework*", "io.spring*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "java"]
 
   - package-ecosystem: "maven"
     directory: "/mentorship-service"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       spring:
         patterns: ["org.springframework*", "io.spring*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "java"]
 
   - package-ecosystem: "maven"
     directory: "/quiz-service"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       spring:
         patterns: ["org.springframework*", "io.spring*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "java"]
 
   - package-ecosystem: "maven"
     directory: "/community-service"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       spring:
         patterns: ["org.springframework*", "io.spring*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "java"]
 
   - package-ecosystem: "maven"
     directory: "/resource-service"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       spring:
         patterns: ["org.springframework*", "io.spring*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "java"]
 
   # ─── Frontend (Angular) ─────────────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       angular:
         patterns: ["@angular/*", "@angular-devkit/*"]
       types:
         patterns: ["@types/*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "frontend"]
 
   # ─── Python (ai-training-path) ──────────────────────────────────────────
   - package-ecosystem: "pip"
     directory: "/ai-training-path"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "python"]
 
   # ─── Docker base images ─────────────────────────────────────────────────
@@ -100,12 +134,18 @@ updates:
       - "/ollama-deploy"
       - "/frontend"
     schedule: { interval: "weekly", day: "tuesday" }
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "docker"]
 
   # ─── GitHub Actions themselves ──────────────────────────────────────────
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule: { interval: "weekly", day: "monday" }
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: ["deps", "ci"]
