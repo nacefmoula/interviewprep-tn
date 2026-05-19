@@ -1,6 +1,8 @@
 # InterviewPrep TN
 
-> A polyglot **microservices platform** for technical-interview preparation — mock interviews, AI-graded quizzes, training paths with gamification, mentorship matching, a community/careers hub and a learning-resource library — behind a single-sign-on gateway.
+> A polyglot **microservices platform** for technical-interview preparation — mock interviews, AI-graded quizzes, gamified training paths, mentorship matching, a community/careers hub, and a learning-resource library — behind a single-sign-on gateway.
+>
+> Built as the **capstone project for my Cloud Computing & DevOps specialization at ESPRIT**, to practise production-grade DevOps end-to-end on a realistic microservices stack — from OpenStack VMs and Heat templates up through Kubernetes, hardened security, CI/CD pipelines, and AI-powered features.
 
 [![CI](https://github.com/nacefmoula/interviewprep-tn/actions/workflows/ci.yml/badge.svg)](https://github.com/nacefmoula/interviewprep-tn/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/nacefmoula/interviewprep-tn/actions/workflows/codeql.yml/badge.svg)](https://github.com/nacefmoula/interviewprep-tn/actions/workflows/codeql.yml)
@@ -9,6 +11,26 @@
 ![Java 21](https://img.shields.io/badge/Java-21-orange)
 ![Spring Boot 3.4](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F)
 ![Angular 21](https://img.shields.io/badge/Angular-21-DD0031)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-OpenStack-326CE5?logo=kubernetes&logoColor=white)
+
+---
+
+## Table of Contents
+
+- [What this project demonstrates](#what-this-project-demonstrates)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Deployment topology](#deployment-topology)
+- [Tech stack](#tech-stack)
+- [Services](#services)
+- [Quick start (local, Docker)](#quick-start-local-docker)
+- [Testing](#testing)
+- [Quality & Security Engineering](#quality--security-engineering)
+- [Project status](#project-status)
+- [Deployment](#deployment)
+- [Repository layout](#repository-layout)
+- [Branch strategy](#branch-strategy)
+- [License](#license)
 
 ---
 
@@ -19,14 +41,23 @@
 - **Polyglot & AI** — Java 21 / Spring Boot, Python / FastAPI ML path generation, LLM (Groq, Ollama `llama3.2`), Whisper STT and Kokoro TTS for the oral-interview features.
 - **Schema discipline** — Flyway-owned schemas with `ddl-auto: validate`; idempotent reconciliation migrations.
 - **Hermetic testing** — Testcontainers integration tests (throwaway Postgres/Kafka/Redis) plus infra-free unit tests; green in CI.
-- **Security & quality engineering** — a documented, systematic remediation effort (see [Quality & Security](#quality--security-engineering)).
-- **CI/CD** — GitHub Actions matrix builds, CodeQL, secret scanning (Gitleaks), IaC scanning (Trivy + kube-linter), containerization and a hybrid OpenStack/Azure/Vercel deployment design.
+- **Security & quality engineering** — a documented, systematic remediation programme I ran on the codebase (see [Quality & Security](#quality--security-engineering)).
+- **CI/CD** — GitHub Actions matrix builds, CodeQL, secret scanning (Gitleaks), IaC scanning (Trivy + kube-linter), containerization, and a hybrid OpenStack / Azure / Vercel deployment design.
+
+## Features
+
+- **🎤 Mock interviews** — Oral practice sessions with AI-generated questions, voice answers transcribed by Whisper, LLM-graded feedback, and spoken responses via Kokoro TTS.
+- **📚 AI-graded quizzes** — Topic-based quizzes with oral or written answers, evaluated by Groq/Ollama with score breakdowns and explanations.
+- **🛤️ Personalized training paths** — ML-generated learning roadmaps (FastAPI `ai-training-path`) that adapt to the user's level and target role, with XP and gamification.
+- **🤝 Mentorship matching** — Pairs users with mentors based on profile and goals; mentors manage requests and sessions from a dedicated dashboard.
+- **💬 Community & careers hub** — Peer Q&A feed plus a careers wizard that suggests roles and curates job-prep content.
+- **📖 Resource library** — Curated articles, videos, and files stored in MinIO / S3, with role-based publishing for admins and mentors.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    UI["Angular 21 SPA"] -->|OIDC| KC["Keycloak (myapp-realm)"]
+    UI["Angular 21 SPA"] -->|OIDC| KC["Keycloak (interviewprep-realm)"]
     UI -->|REST + Bearer JWT| GW["API Ingress"]
 
     GW --> US["user-service :8081"]
@@ -56,6 +87,48 @@ flowchart TD
     US --- RD[("Redis")]
 ```
 
+## Deployment topology
+
+The platform runs on a deliberately hybrid topology — each workload on the platform that fits it best:
+
+```mermaid
+flowchart LR
+    User([👤 User])
+
+    subgraph Vercel["🌐 Vercel (CDN edge)"]
+        FE["Angular 21 SPA"]
+    end
+
+    subgraph OS["☁️ OpenStack Kubernetes — piclouddoom"]
+        direction TB
+        Ingress["NGINX Ingress"]
+        Core["Spring Boot services<br/>user · interview · training<br/>mentorship · quiz · community · resource"]
+        KCp["Keycloak"]
+        Data[("PostgreSQL · Redis<br/>Kafka · MinIO")]
+        Ingress --> Core
+        Ingress --> KCp
+        Core --- Data
+    end
+
+    subgraph ACA["☁️ Azure Container Apps"]
+        AIsvc["ai-training-path (FastAPI)<br/>Whisper STT · Kokoro TTS · Ollama"]
+    end
+
+    DH[("🐳 DockerHub<br/>container registry")]
+
+    User -->|HTTPS| FE
+    FE -->|HTTPS API| Ingress
+    Core -.->|HTTPS| AIsvc
+    DH -. images .-> Core
+    DH -. images .-> AIsvc
+```
+
+**Why this split?**
+- *Stateful + core business logic* lives on **OpenStack Kubernetes** — full control, IaC via Heat, cheap for an academic cluster.
+- *GPU-leaning AI services* live on **Azure Container Apps** — scale-to-zero pricing, no GPU on the OpenStack cluster.
+- *Static frontend* on **Vercel** — global CDN, zero infra to manage.
+- *Container images* are built once in CI and pushed to **DockerHub**, then pulled by both clouds.
+
 ## Tech stack
 
 | Layer        | Technology |
@@ -63,7 +136,7 @@ flowchart TD
 | Backend      | Spring Boot 3.4 (Java 21), 7 microservices |
 | AI / ML      | FastAPI (`ai-training-path`), Whisper (STT), Kokoro (TTS), Ollama `llama3.2`, Groq |
 | Frontend     | Angular 21 (standalone components, typed) |
-| Auth         | Keycloak (OIDC, realm `myapp-realm`) |
+| Auth         | Keycloak (OIDC, realm `interviewprep-realm`) |
 | Data         | PostgreSQL 16, Redis 7, Kafka 7.5, MinIO (S3-compatible) |
 | Migrations   | Flyway (pinned 9.22.3 where introduced) |
 | Tests        | JUnit 5, Testcontainers, AssertJ |
@@ -83,7 +156,7 @@ flowchart TD
 | resource-service    | 8087  | Learning-resource library                |
 | ai-training-path    | 8001  | ML/LLM-driven training-path generation   |
 | frontend (Angular)  | 4200  | Web UI                                   |
-| Keycloak            | 8080  | OIDC + realm `myapp-realm`               |
+| Keycloak            | 8080  | OIDC + realm `interviewprep-realm`       |
 
 ## Quick start (local, Docker)
 
@@ -156,18 +229,18 @@ cd frontend && npm ci && npx ng build --configuration production && npm run lint
 
 ## Quality & Security Engineering
 
-This codebase went through a **systematic, documented audit-and-remediation programme** — the kind of work this internship is about. Full backlog, severities, decisions and rationale: [`docs/quality/CODE_AUDIT.md`](docs/quality/CODE_AUDIT.md).
+Beyond shipping features, I ran a **systematic, documented audit-and-remediation programme** on this codebase — the kind of engineering work I want to do professionally. Full backlog, severities, decisions and rationale: [`docs/quality/CODE_AUDIT.md`](docs/quality/CODE_AUDIT.md).
 
-Highlights:
-- **Exception handlers** hardened so 5xx responses never leak `ex.getMessage()` / class names.
-- **Authorization** holes closed (paid AI endpoints now authenticated; ownership checks; admin gating).
-- **Outbound HTTP** given connect/read timeouts + bounded retry (no thread-starvation DoS).
-- **JWT role mapping** unified across services via one canonical normalization (fixed real bugs: double-prefixing, case mismatch).
-- **Schema integrity** — Flyway made the sole schema owner with idempotent reconciliation; risky migrations explicitly assessed, not blindly "fixed".
-- **Secrets** removed from source; this repository starts from **fresh git history** so no credential ever appears in the log.
-- **Tests** added as hermetic regression guards for the security fixes.
+What I tackled:
+- **Hardened exception handlers** so 5xx responses no longer leak `ex.getMessage()` / class names.
+- **Closed authorization holes** — paid AI endpoints are now authenticated, with ownership checks and admin gating.
+- **Added connect/read timeouts + bounded retry** to outbound HTTP, eliminating a thread-starvation DoS risk.
+- **Unified JWT role mapping** across every service behind one canonical normalizer, fixing real bugs (double-prefixing, case mismatch).
+- **Made Flyway the sole schema owner** with idempotent reconciliation migrations.
+- **Removed secrets from source** and reset git history so no credential ever appears in the log.
+- **Wrote hermetic regression tests** for every security fix, so the next contributor can't silently undo them.
 
-Decisions were made with engineering judgement — risky changes (e.g. consolidating already-applied migrations) were **deliberately deferred with written rationale** rather than shipped recklessly.
+Where a change was risky — like consolidating already-applied migrations — I **deliberately deferred it with written rationale** rather than ship neatness over safety. Engineering judgment over churn.
 
 ## Project status
 
@@ -176,7 +249,7 @@ Decisions were made with engineering judgement — risky changes (e.g. consolida
 | Backend builds + tests | ✅ green in CI (all services, Testcontainers) |
 | Frontend production build + lint | ✅ green |
 | Local one-command run (`docker compose`) | ✅ works |
-| Live cloud deployment | ⚙️ designed & scripted; requires your own DockerHub/Vercel/Azure secrets (see Deployment) |
+| Live cloud deployment | ⚙️ designed & scripted; requires your own DockerHub / Vercel / Azure secrets (see Deployment) |
 
 ## Deployment
 
